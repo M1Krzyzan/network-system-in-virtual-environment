@@ -36,8 +36,7 @@ class RouterController(Thread):
         :param pkt: Packet to send
         """
         packet = Ether(pkt)
-        #print(self.router.name, self.router.intfs[port].name)
-        #packet.show()
+       # packet.show()
         raw_socket = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
         raw_socket.bind((self.router.intfs[port].name, 0))
         raw_socket.send(pkt)
@@ -68,7 +67,6 @@ class RouterController(Thread):
             self.stored_packet[Ether].dst = self.arp_table[self.stored_packet[RouterCPUMetadata].nextHop]
             self.send(1, bytes(self.stored_packet))
             self.stored_packet = None
-            print(self.stored_packet)
 
     def send_arp_request(self, pkt):
         """
@@ -77,7 +75,6 @@ class RouterController(Thread):
         """
         # Store packet in controller
         self.stored_packet = pkt
-        self.stored_packet.show()
         # Create arp request packet
         new_packet = Ether() / RouterCPUMetadata() / ARP()
 
@@ -96,13 +93,14 @@ class RouterController(Thread):
         new_packet[ARP].pdst = pkt[RouterCPUMetadata].nextHop
         new_packet[ARP].hwsrc = self.intfs[pkt[RouterCPUMetadata].dstPort - 2].mac_addr
         new_packet[ARP].psrc = self.intfs[pkt[RouterCPUMetadata].dstPort - 2].ip_addr
+
         # Send packet to data plane
         self.send(1, bytes(new_packet))
 
     def send_icmp_time_exceeded(self, pkt):
         """
         Create ICMP time exceeded packet, which will be sent to source after ttl is 0
-        :param pkt: Packet whoe ttl is 0
+        :param pkt: Packet whose ttl is 0
         """
         # Create ICMP time exceeded packet
         new_packet = Ether() / RouterCPUMetadata() / IP() / ICMP() / pkt[IP]
@@ -165,9 +163,11 @@ class RouterController(Thread):
         pkt = Ether(packet)
         # Check whether packet has RouterCPUMetadata header
         if RouterCPUMetadata not in pkt:
+            pkt.show()
             print("Error: Packets coming to CPU should have special header router")
             return
-
+        if pkt[RouterCPUMetadata].fromCpu == 1:
+            return
         pkt[RouterCPUMetadata].fromCpu = 1
 
         # Main logic of packet handler

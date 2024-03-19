@@ -219,7 +219,6 @@ control ingress_control(inout headers_t hdr,
     action cpu_metadata_encap(bit<5> reasonID) {
         hdr.cpu_metadata.setValid();
         hdr.cpu_metadata.srcPort = standard_metadata.ingress_port;
-        log_msg("ethType ={}",{hdr.ethernet.ethType});
         hdr.cpu_metadata.origEthType = hdr.ethernet.ethType;
         hdr.ethernet.ethType = TYPE_CPU_METADATA;
         hdr.cpu_metadata.opType = reasonID;
@@ -231,12 +230,17 @@ control ingress_control(inout headers_t hdr,
         cpu_metadata_encap(reasonID);
     }
 
+    action multicast(bit<16> mgid) {
+        standard_metadata.mcast_grp = mgid;
+    }
+
     table local_ip_table {
         key = {
             hdr.ipv4.dstAddr:exact;
         }
         actions = {
             set_sintf;
+            multicast;
             send_to_cpu;
             NoAction;
         }
@@ -300,7 +304,6 @@ control ingress_control(inout headers_t hdr,
     apply {
         if(hdr.cpu_metadata.fromCpu  == 1 && hdr.cpu_metadata.isValid()){
             if(hdr.cpu_metadata.dstPort > 1){
-                log_msg("egress_port_log = {}",{hdr.cpu_metadata.dstPort});
                 standard_metadata.egress_spec = hdr.cpu_metadata.dstPort;
             }
             cpu_metadata_decap();
@@ -346,7 +349,7 @@ control egress_control(inout headers_t hdr,
     action drop() {
         mark_to_drop(standard_metadata);
     }
-    table send_frame {
+    table mac_rewriting_table {
         actions = {
             set_smac;
             NoAction;
@@ -358,8 +361,10 @@ control egress_control(inout headers_t hdr,
         default_action = NoAction();
     }
     apply {
-        if (hdr.ethernet.isValid()) {
-            send_frame.apply();
+        if (hdr.ethernet.isValid() && standard_metadata.egress_port != standard_metadata.ingress_port) {
+            mac_rewriting_table.apply();
+        }else {
+            drop();
         }
     }
 }

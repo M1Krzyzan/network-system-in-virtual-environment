@@ -113,15 +113,15 @@ def main():
 
     sw.addMulticastGroup(mgid=1, ports=range(2, 5))
 
-    #sw.insertTableEntry(table_name='ingress_control.l2_forwarding',
+    # sw.insertTableEntry(table_name='ingress_control.l2_forwarding',
     #                    match_fields={'hdr.ethernet.dstAddr': ["00:00:66:a8:00:02"]},
     #                    action_name='ingress_control.forward',
     #                    action_params={'egress_port': 2})
-    #sw.insertTableEntry(table_name='ingress_control.l2_forwarding',
+    # sw.insertTableEntry(table_name='ingress_control.l2_forwarding',
     #                    match_fields={'hdr.ethernet.dstAddr': ["00:00:66:a8:00:03"]},
     #                    action_name='ingress_control.forward',
     #                    action_params={'egress_port': 3})
-    #sw.insertTableEntry(table_name='ingress_control.l2_forwarding',
+    # sw.insertTableEntry(table_name='ingress_control.l2_forwarding',
     #                    match_fields={'hdr.ethernet.dstAddr': ["00:00:66:a8:00:01"]},
     #                    action_name='ingress_control.forward',
     #                    action_params={'egress_port': 4})
@@ -133,10 +133,10 @@ def main():
     # sw.insertTableEntry(table_name='ingress_control.learned_src',
     #                    match_fields={'hdr.ethernet.srcAddr': ["00:00:66:a8:00:02"]},
     #                    action_name='NoAction')
-    #sw.insertTableEntry(table_name='ingress_control.learned_src',
+    # sw.insertTableEntry(table_name='ingress_control.learned_src',
     #                    match_fields={'hdr.ethernet.srcAddr': ["00:00:66:a8:00:03"]},
     #                    action_name='NoAction')
-    #sw.insertTableEntry(table_name='ingress_control.learned_src',
+    # sw.insertTableEntry(table_name='ingress_control.learned_src',
     #                    match_fields={'hdr.ethernet.srcAddr': ["00:00:66:a8:00:01"]},
     #                    action_name='NoAction')
 
@@ -170,7 +170,6 @@ def main():
                         match_fields={'hdr.ipv4.dstAddr': "192.168.2.1"},
                         action_name='ingress_control.set_sintf',
                         action_params={'egress_port': 4})
-
 
     r2.insertTableEntry(table_name='ingress_control.local_ip_table',
                         match_fields={'hdr.ipv4.dstAddr': "20.0.0.1"},
@@ -216,41 +215,41 @@ def main():
                         action_name='ingress_control.set_sintf',
                         action_params={'egress_port': 3})
     # ARP TABLE
-    #r1.insertTableEntry(table_name='ingress_control.arp_table',
+    # r1.insertTableEntry(table_name='ingress_control.arp_table',
     #                    match_fields={'next_hop': "192.168.1.2"},
     #                    action_name='ingress_control.set_dmac',
     #                    action_params={'mac_dest': "00:00:c0:a8:01:02"})
-    #r1.insertTableEntry(table_name='ingress_control.arp_table',
+    # r1.insertTableEntry(table_name='ingress_control.arp_table',
     #                    match_fields={'next_hop': "192.168.2.1"},
     #                    action_name='ingress_control.set_dmac',
     #                    action_params={'mac_dest': '00:00:c0:a8:02:01'})
-    #r1.insertTableEntry(table_name='ingress_control.arp_table',
+    # r1.insertTableEntry(table_name='ingress_control.arp_table',
     #                    match_fields={'next_hop': "102.168.0.2"},
     #                    action_name='ingress_control.set_dmac',
     #                    action_params={'mac_dest': '00:00:66:a8:00:02'})
-    #r1.insertTableEntry(table_name='ingress_control.arp_table',
+    # r1.insertTableEntry(table_name='ingress_control.arp_table',
     #                    match_fields={'next_hop': "102.168.0.3"},
     #                    action_name='ingress_control.set_dmac',
     #                    action_params={'mac_dest': '00:00:66:a8:00:03'})
 
-    #r2.insertTableEntry(table_name='ingress_control.arp_table',
+    # r2.insertTableEntry(table_name='ingress_control.arp_table',
     #                    match_fields={'next_hop': "192.168.1.1"},
     #                    action_name='ingress_control.set_dmac',
     #                    action_params={'mac_dest': '00:00:c0:a8:01:01'})
-    #r2.insertTableEntry(table_name='ingress_control.arp_table',
+    # r2.insertTableEntry(table_name='ingress_control.arp_table',
     #                    match_fields={'next_hop': "20.0.0.2"},
     #                    action_name='ingress_control.set_dmac',
     #                    action_params={'mac_dest': '00:00:14:00:00:02'})
-    #r2.insertTableEntry(table_name='ingress_control.arp_table',
+    # r2.insertTableEntry(table_name='ingress_control.arp_table',
     #                    match_fields={'next_hop': "192.168.3.1"},
     #                    action_name='ingress_control.set_dmac',
     #                    action_params={'mac_dest': '00:00:c0:a8:03:01'})
 
-    #r3.insertTableEntry(table_name='ingress_control.arp_table',
+    # r3.insertTableEntry(table_name='ingress_control.arp_table',
     #                    match_fields={'next_hop': "192.168.3.2"},
     #                    action_name='ingress_control.set_dmac',
     #                    action_params={'mac_dest': "00:00:c0:a8:03:02"})
-    #r3.insertTableEntry(table_name='ingress_control.arp_table',
+    # r3.insertTableEntry(table_name='ingress_control.arp_table',
     #                    match_fields={'next_hop': "192.168.0.3"},
     #                    action_name='ingress_control.set_dmac',
     #                    action_params={'mac_dest': "00:00:66:a8:00:03"})
@@ -288,37 +287,37 @@ def main():
                         action_params={'nhop': '192.168.3.1', 'egress_port': 3})
 
     # src mac rewrite
-    r1.insertTableEntry(table_name='egress_control.send_frame',
+    r1.insertTableEntry(table_name='egress_control.mac_rewriting_table',
                         match_fields={'standard_metadata.egress_port': 2},
                         action_name='egress_control.set_smac',
                         action_params={'smac': '00:00:66:a8:00:01'})
-    r1.insertTableEntry(table_name='egress_control.send_frame',
+    r1.insertTableEntry(table_name='egress_control.mac_rewriting_table',
                         match_fields={'standard_metadata.egress_port': 3},
                         action_name='egress_control.set_smac',
                         action_params={'smac': '00:00:c0:a8:01:01'})
-    r1.insertTableEntry(table_name='egress_control.send_frame',
+    r1.insertTableEntry(table_name='egress_control.mac_rewriting_table',
                         match_fields={'standard_metadata.egress_port': 4},
                         action_name='egress_control.set_smac',
                         action_params={'smac': '00:00:c0:a8:02:02'})
 
-    r2.insertTableEntry(table_name='egress_control.send_frame',
+    r2.insertTableEntry(table_name='egress_control.mac_rewriting_table',
                         match_fields={'standard_metadata.egress_port': 2},
                         action_name='egress_control.set_smac',
                         action_params={'smac': '00:00:14:00:00:01'})
-    r2.insertTableEntry(table_name='egress_control.send_frame',
+    r2.insertTableEntry(table_name='egress_control.mac_rewriting_table',
                         match_fields={'standard_metadata.egress_port': 3},
                         action_name='egress_control.set_smac',
                         action_params={'smac': '00:00:c0:a8:01:02'})
-    r2.insertTableEntry(table_name='egress_control.send_frame',
+    r2.insertTableEntry(table_name='egress_control.mac_rewriting_table',
                         match_fields={'standard_metadata.egress_port': 4},
                         action_name='egress_control.set_smac',
                         action_params={'smac': '00:00:c0:a8:03:01'})
 
-    r3.insertTableEntry(table_name='egress_control.send_frame',
+    r3.insertTableEntry(table_name='egress_control.mac_rewriting_table',
                         match_fields={'standard_metadata.egress_port': 2},
                         action_name='egress_control.set_smac',
                         action_params={'smac': '00:00:c0:a8:02:01'})
-    r3.insertTableEntry(table_name='egress_control.send_frame',
+    r3.insertTableEntry(table_name='egress_control.mac_rewriting_table',
                         match_fields={'standard_metadata.egress_port': 3},
                         action_name='egress_control.set_smac',
                         action_params={'smac': '00:00:c0:a8:03:02'})
@@ -359,34 +358,29 @@ def main():
                         action_name='ingress_control.reply',
                         action_params={'intfAddr': '00:00:c0:a8:03:02'})
 
-
-    net.get('h3').cmd('arp -s 102.168.0.1 00:00:66:a8:00:01')
     net.get('h3').cmd('ip r add default via 102.168.0.1')
 
-    #net.get('h2').cmd('arp -s 102.168.0.1 00:00:66:a8:00:01')
     net.get('h2').cmd('ip r add default via 102.168.0.1')
 
-    #net.get('h1').cmd('arp -s 20.0.0.1 00:00:14:00:00:01')
     net.get('h1').cmd('ip r add default via 20.0.0.1')
 
-    r1_intfs = [('00:00:66:a8:00:01','102.168.0.1','255.255.255.0'),
-    ('00:00:c0:a8:00:01','192.168.1.1','255.255.255.0'),
-    ('00:00:c0:a8:00:02','192.168.2.2','255.255.255.0')]
+    r1_intfs = [('00:00:66:a8:00:01', '102.168.0.1', '255.255.255.0'),
+                ('00:00:c0:a8:00:01', '192.168.1.1', '255.255.255.0'),
+                ('00:00:c0:a8:00:02', '192.168.2.2', '255.255.255.0')]
 
-    r2_intfs = [('00:00:14:00:00:01','20.0.0.1','255.255.255.0'),
-    ('00:00:c0:a8:01:02','192.168.1.2','255.255.255.0'),
-    ('00:00:c0:a8:03:01','192.168.3.1','255.255.255.0')]
+    r2_intfs = [('00:00:14:00:00:01', '20.0.0.1', '255.255.255.0'),
+                ('00:00:c0:a8:01:02', '192.168.1.2', '255.255.255.0'),
+                ('00:00:c0:a8:03:01', '192.168.3.1', '255.255.255.0')]
 
-    r3_intfs = [('00:00:c0:a8:02:01','192.168.2.1','255.255.255.0'),
-    ('00:00:c0:a8:03:02','192.168.3.2','255.255.255.0')]
+    r3_intfs = [('00:00:c0:a8:02:01', '192.168.2.1', '255.255.255.0'),
+                ('00:00:c0:a8:03:02', '192.168.3.2', '255.255.255.0')]
 
     cpu = SwitchController(sw)
     cpu.start()
 
-    cpu1  = RouterController(r1, r1_intfs)
-    cpu2  = RouterController(r2, r2_intfs)
-    cpu3  = RouterController(r3, r3_intfs)
-
+    cpu1 = RouterController(r1, r1_intfs)
+    cpu2 = RouterController(r2, r2_intfs)
+    cpu3 = RouterController(r3, r3_intfs)
 
     cpu1.start()
     cpu2.start()
