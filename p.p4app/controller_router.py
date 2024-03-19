@@ -7,14 +7,13 @@ from headers.router_cpu_metadata import RouterCPUMetadata
 from scapy.all import Ether, ARP, IP, ICMP, Raw
 
 
-class Interface():
+class Interface:
     def __init__(self, mac_addr, ip_addr, mask, hello_int):
         self.ip_addr = ip_addr
         self.mask = mask
         self.hello_int = hello_int
         self.mac_addr = mac_addr
         self.neighbours = {}
-
 
 
 class RouterController(Thread):
@@ -37,14 +36,14 @@ class RouterController(Thread):
         :param pkt: Packet to send
         """
         packet = Ether(pkt)
-        print(self.router.name, self.router.intfs[port].name)
-        packet.show()
+        #print(self.router.name, self.router.intfs[port].name)
+        #packet.show()
         raw_socket = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
         raw_socket.bind((self.router.intfs[port].name, 0))
         raw_socket.send(pkt)
         raw_socket.close()
 
-    def print_arp_table():
+    def print_arp_table(self):
         print(self.arp_table)
 
     def handle_arp_reply(self, pkt):
@@ -54,11 +53,11 @@ class RouterController(Thread):
         :param pkt: Packet to process
         """
         # check if the entry is already in arp table
-        if pkt[ARP].psrc  not in self.arp_table:
-        # add pair of ip address, mac address to arp table copy stored by controller
+        if pkt[ARP].psrc not in self.arp_table:
+            # add a pair of ip address, mac address to arp table copy stored by controller
             self.arp_table[pkt[ARP].psrc] = pkt[ARP].hwsrc
 
-        # add pair of ip address, mac address to arp table
+        # add a pair of ip address, mac address to arp table
         self.router.insertTableEntry(table_name='ingress_control.arp_table',
                                      match_fields={'next_hop': pkt[ARP].psrc},
                                      action_name='ingress_control.set_dmac',
@@ -67,8 +66,9 @@ class RouterController(Thread):
         # send back packet stored before sending arp request
         if self.stored_packet:
             self.stored_packet[Ether].dst = self.arp_table[self.stored_packet[RouterCPUMetadata].nextHop]
-            self.send(self.stored_packet[RouterCPUMetadata].srcPort, bytes(self.stored_packet))
-            self.strored_packet = None
+            self.send(1, bytes(self.stored_packet))
+            self.stored_packet = None
+            print(self.stored_packet)
 
     def send_arp_request(self, pkt):
         """
@@ -77,12 +77,12 @@ class RouterController(Thread):
         """
         # Store packet in controller
         self.stored_packet = pkt
-
+        self.stored_packet.show()
         # Create arp request packet
-        new_packet = Ether()/RouterCPUMetadata()/ARP()
+        new_packet = Ether() / RouterCPUMetadata() / ARP()
 
         new_packet[Ether].dst = "ff:ff:ff:ff:ff:ff"
-        new_packet[Ether].src = self.intfs[pkt[RouterCPUMetadata].dstPort-2].mac_addr
+        new_packet[Ether].src = self.intfs[pkt[RouterCPUMetadata].dstPort - 2].mac_addr
         new_packet[Ether].type = 0x80b
 
         new_packet[RouterCPUMetadata].fromCpu = 1
@@ -94,8 +94,8 @@ class RouterController(Thread):
         new_packet[ARP].plen = 4
         new_packet[ARP].op = 1
         new_packet[ARP].pdst = pkt[RouterCPUMetadata].nextHop
-        new_packet[ARP].hwsrc = self.intfs[pkt[RouterCPUMetadata].dstPort-2].mac_addr
-        new_packet[ARP].psrc = self.intfs[pkt[RouterCPUMetadata].dstPort-2].ip_addr
+        new_packet[ARP].hwsrc = self.intfs[pkt[RouterCPUMetadata].dstPort - 2].mac_addr
+        new_packet[ARP].psrc = self.intfs[pkt[RouterCPUMetadata].dstPort - 2].ip_addr
         # Send packet to data plane
         self.send(1, bytes(new_packet))
 
@@ -105,14 +105,14 @@ class RouterController(Thread):
         :param pkt: Packet whoe ttl is 0
         """
         # Create ICMP time exceeded packet
-        new_packet = Ether()/RouterCPUMetadata()/IP()/ICMP()/pkt[IP]
+        new_packet = Ether() / RouterCPUMetadata() / IP() / ICMP() / pkt[IP]
 
         new_packet[RouterCPUMetadata].fromCpu = 1
         new_packet[RouterCPUMetadata].srcPort = 1
         new_packet[RouterCPUMetadata].origEthType = 0x800
 
         new_packet[IP].dst = pkt[IP].src
-        new_packet[IP].src = self.intfs[pkt[RouterCPUMetadata].srcPort-2].ip_addr
+        new_packet[IP].src = self.intfs[pkt[RouterCPUMetadata].srcPort - 2].ip_addr
         new_packet[IP].ihl = 5
         new_packet[IP].proto = 0x1
         new_packet[IP].len = len(new_packet[IP])
@@ -128,10 +128,10 @@ class RouterController(Thread):
         Create reply to ICMP echo request
         :param pkt: ICMP echo request packet that we answer to
         """
-        # TODO: Fix time stored in data section of packet
+        # TODO: Fix time of reply stored in data section of packet
 
         # Create ICMP echo reply
-        new_packet = Ether()/RouterCPUMetadata()/IP()/ICMP()
+        new_packet = Ether() / RouterCPUMetadata() / IP() / ICMP()
 
         new_packet[Ether].dst = pkt[Ether].src
         new_packet[Ether].src = pkt[Ether].dst
