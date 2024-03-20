@@ -1,5 +1,5 @@
 import socket
-
+from time import time
 from sniffer import sniff
 from threading import Thread, Event
 from p4runtime_lib.convert import *
@@ -127,9 +127,12 @@ class RouterController(Thread):
         :param pkt: ICMP echo request packet that we answer to
         """
         # TODO: Fix time of reply stored in data section of packet
-
+        # Not quite precise, but still fine TODO: get timer in ms not in sec
+        payload = bytes(pkt[ICMP].payload)
+        payload = int(time()).to_bytes(7,byteorder='little') + payload[7:]
+        print(payload.hex())
         # Create ICMP echo reply
-        new_packet = Ether() / RouterCPUMetadata() / IP() / ICMP()
+        new_packet = Ether() / RouterCPUMetadata() / IP() / ICMP() / Raw(payload)
 
         new_packet[Ether].dst = pkt[Ether].src
         new_packet[Ether].src = pkt[Ether].dst
@@ -147,6 +150,8 @@ class RouterController(Thread):
         new_packet[ICMP].code = 0
         new_packet[ICMP].seq = pkt[ICMP].seq
         new_packet[ICMP].id = pkt[ICMP].id
+
+        new_packet.show()
 
         # Send packet to data plane
         self.send(1, bytes(new_packet))

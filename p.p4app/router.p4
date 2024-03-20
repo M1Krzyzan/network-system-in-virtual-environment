@@ -361,7 +361,7 @@ control egress_control(inout headers_t hdr,
         default_action = NoAction();
     }
     apply {
-        if (hdr.ethernet.isValid() && standard_metadata.egress_port != standard_metadata.ingress_port) {
+        if (hdr.ethernet.isValid()) {
             mac_rewriting_table.apply();
         }else {
             drop();

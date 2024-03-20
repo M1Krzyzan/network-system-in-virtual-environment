@@ -20,7 +20,8 @@ class SwitchController(Thread):
         :param port: Port number on which the switch received the packet
         :param mac_addr: MAC address of the interface from which the switch received the packet
         """
-        if mac_addr in self.forwarding_table: return
+        if mac_addr in self.forwarding_table:
+            return
         self.forwarding_table[mac_addr] = port
 
         self.switch.insertTableEntry(table_name='ingress_control.l2_forwarding',
@@ -47,9 +48,13 @@ class SwitchController(Thread):
         :param packet: Packet received from sniffer
         """
         pkt = Ether(packet)
+
         if CPUMetadata not in pkt:
             print("Error: Packets coming to CPU should have special header/ switch")
             return
+        if pkt[CPUMetadata].fromCpu == 1:
+            return
+
         pkt[CPUMetadata].fromCpu = 1
         self.add_forwarding_table_entry(pkt[CPUMetadata].srcPort, pkt[Ether].src)
         self.send(pkt[CPUMetadata].srcPort, bytes(pkt))

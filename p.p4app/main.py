@@ -140,6 +140,24 @@ def main():
     #                    match_fields={'hdr.ethernet.srcAddr': ["00:00:66:a8:00:01"]},
     #                    action_name='NoAction')
 
+    # MULTICAST GROUPS FOR ROUTER
+    r1.addMulticastGroup(mgid=1, ports=range(2, 5))
+    r2.addMulticastGroup(mgid=1, ports=range(2, 5))
+    r3.addMulticastGroup(mgid=1, ports=range(2, 4))
+
+    r1.insertTableEntry(table_name='ingress_control.local_ip_table',
+                        match_fields={'hdr.ipv4.dstAddr': "224.0.0.5"},
+                        action_name='ingress_control.multicast',
+                        action_params={'mgid': 1})
+    r2.insertTableEntry(table_name='ingress_control.local_ip_table',
+                        match_fields={'hdr.ipv4.dstAddr': "224.0.0.5"},
+                        action_name='ingress_control.multicast',
+                        action_params={'mgid': 1})
+    r3.insertTableEntry(table_name='ingress_control.local_ip_table',
+                        match_fields={'hdr.ipv4.dstAddr': "224.0.0.5"},
+                        action_name='ingress_control.multicast',
+                        action_params={'mgid': 1})
+
     # LOCAL IP TABLE
     r1.insertTableEntry(table_name='ingress_control.local_ip_table',
                         match_fields={'hdr.ipv4.dstAddr': "102.168.0.1"},
