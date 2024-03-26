@@ -25,6 +25,9 @@ class Interface:
         self.neighbours.remove((router_id, interface_ip))
         self.neighbours_times.pop((router_id, interface_ip))
 
+    def update_time(self, router_id, intf_ip):
+        self.neighbours_times[(router_id, intf_ip)] = time()
+
 
 class RouterController(Thread):
     def __init__(self, router, router_intfs, area_id=1, lsu_int=30):
@@ -54,12 +57,14 @@ class RouterController(Thread):
         :param port: Port number which corresponds to the interface of switch
         :param pkt: Packet to send
         """
-        packet = Ether(pkt)
-        # packet.show()
         raw_socket = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
         raw_socket.bind((self.router.intfs[port].name, 0))
         raw_socket.send(pkt)
         raw_socket.close()
+
+    def print_neigh(self):
+        for intf in self.intfs:
+            print("Intf:",intf.ip_addr,"neigh:", intf.neighbours)
 
     def handle_arp_reply(self, pkt):
         """
@@ -162,13 +167,29 @@ class RouterController(Thread):
         new_packet[ICMP].seq = pkt[ICMP].seq
         new_packet[ICMP].id = pkt[ICMP].id
 
-        new_packet.show()
-
         # Send packet to data plane
         self.send(1, bytes(new_packet))
 
     def handle_hello(self, pkt):
-        pass
+        if pkt[PWOSPF].version != 2 or pkt[PWOSPF].areaID != self.area_id:
+            return
+        if pkt[PWOSPF].auType != 0 or pkt[PWOSPF].auth != 0:
+            return
+
+        intf = self.intfs[pkt[RouterCPUMetadata].srcPort - 2]
+
+        if pkt[Hello].netmask != intf.mask:
+            return
+        if pkt[Hello].helloint != intf.hello_int:
+            return
+
+        router_id = pkt[PWOSPF].routerID
+        intf_ip = pkt[IP].src
+
+        if (router_id, intf_ip) in intf.neighbours:
+            intf.update_time(router_id, intf_ip)
+        else:
+            intf.add_neighbor(router_id, intf_ip)
 
     def handle_lsu(self, pkt):
         pass
@@ -180,6 +201,7 @@ class RouterController(Thread):
         """
         # Parse packet to Scapy headers
         pkt = Ether(packet)
+
         # Check whether packet has RouterCPUMetadata header
         if RouterCPUMetadata not in pkt:
             pkt.show()
@@ -237,8 +259,9 @@ class HelloManager(Thread):
     def check_times(self):
         now = time()
         for n in self.intf.neighbours:
-            then = self.intf.neighbours_times.get(n[0], n[1])
+            then = self.intf.neighbours_times.setdefault((n[0], n[1]), now)
             if (now - then) > 3 * self.intf.hello_int:
+                print(now-then)
                 self.intf.remove_neighbor(n[0], n[1])
 
     def send_hello(self):
