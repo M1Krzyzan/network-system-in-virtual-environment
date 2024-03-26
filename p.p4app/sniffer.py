@@ -1,5 +1,6 @@
 import socket
 
+
 def sniff(intf, handle_packet, stop_event):
     raw_socket = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
     raw_socket.bind((intf, 0))

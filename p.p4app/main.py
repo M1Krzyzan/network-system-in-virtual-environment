@@ -100,16 +100,16 @@ def main():
     r2 = net.get('r2')
     r3 = net.get('r3')
 
-    r1.setMAC('00:00:66:a8:00:01', 'r1-eth2')
-    r1.setMAC('00:00:c0:a8:01:01', 'r1-eth3')
-    r1.setMAC('00:00:c0:a8:02:02', 'r1-eth4')
-
-    r2.setMAC('00:00:14:00:00:01', 'r2-eth2')
-    r2.setMAC('00:00:c0:a8:01:02', 'r2-eth3')
-    r2.setMAC('00:00:c0:a8:03:01', 'r2-eth4')
-
-    r3.setMAC('00:00:c0:a8:02:01', 'r3-eth2')
-    r3.setMAC('00:00:c0:a8:03:02', 'r3-eth3')
+    # r1.setMAC('00:00:66:a8:00:01', 'r1-eth2')
+    # r1.setMAC('00:00:c0:a8:01:01', 'r1-eth3')
+    # r1.setMAC('00:00:c0:a8:02:02', 'r1-eth4')
+    #
+    # r2.setMAC('00:00:14:00:00:01', 'r2-eth2')
+    # r2.setMAC('00:00:c0:a8:01:02', 'r2-eth3')
+    # r2.setMAC('00:00:c0:a8:03:01', 'r2-eth4')
+    #
+    # r3.setMAC('00:00:c0:a8:02:01', 'r3-eth2')
+    # r3.setMAC('00:00:c0:a8:03:02', 'r3-eth3')
 
     sw.addMulticastGroup(mgid=1, ports=range(2, 5))
 
@@ -146,19 +146,23 @@ def main():
     r3.addMulticastGroup(mgid=1, ports=range(2, 4))
 
     r1.insertTableEntry(table_name='ingress_control.local_ip_table',
-                        match_fields={'hdr.ipv4.dstAddr': "224.0.0.5"},
+                        match_fields={'hdr.ipv4.dstAddr': "255.255.255.255"},
                         action_name='ingress_control.multicast',
                         action_params={'mgid': 1})
     r2.insertTableEntry(table_name='ingress_control.local_ip_table',
-                        match_fields={'hdr.ipv4.dstAddr': "224.0.0.5"},
+                        match_fields={'hdr.ipv4.dstAddr': "255.255.255.255"},
                         action_name='ingress_control.multicast',
                         action_params={'mgid': 1})
     r3.insertTableEntry(table_name='ingress_control.local_ip_table',
-                        match_fields={'hdr.ipv4.dstAddr': "224.0.0.5"},
+                        match_fields={'hdr.ipv4.dstAddr': "255.255.255.255"},
                         action_name='ingress_control.multicast',
                         action_params={'mgid': 1})
 
     # LOCAL IP TABLE
+    r1.insertTableEntry(table_name='ingress_control.local_ip_table',
+                        match_fields={'hdr.ipv4.dstAddr': "224.0.0.5"},
+                        action_name='ingress_control.set_sintf',
+                        action_params={'egress_port': 1})
     r1.insertTableEntry(table_name='ingress_control.local_ip_table',
                         match_fields={'hdr.ipv4.dstAddr': "102.168.0.1"},
                         action_name='ingress_control.set_sintf',
@@ -190,6 +194,10 @@ def main():
                         action_params={'egress_port': 4})
 
     r2.insertTableEntry(table_name='ingress_control.local_ip_table',
+                        match_fields={'hdr.ipv4.dstAddr': "224.0.0.5"},
+                        action_name='ingress_control.set_sintf',
+                        action_params={'egress_port': 1})
+    r2.insertTableEntry(table_name='ingress_control.local_ip_table',
                         match_fields={'hdr.ipv4.dstAddr': "20.0.0.1"},
                         action_name='ingress_control.set_sintf',
                         action_params={'egress_port': 1})
@@ -215,6 +223,10 @@ def main():
                         action_name='ingress_control.set_sintf',
                         action_params={'egress_port': 4})
 
+    r3.insertTableEntry(table_name='ingress_control.local_ip_table',
+                        match_fields={'hdr.ipv4.dstAddr': "224.0.0.5"},
+                        action_name='ingress_control.set_sintf',
+                        action_params={'egress_port': 1})
     r3.insertTableEntry(table_name='ingress_control.local_ip_table',
                         match_fields={'hdr.ipv4.dstAddr': "192.168.2.1"},
                         action_name='ingress_control.set_sintf',
@@ -382,16 +394,16 @@ def main():
 
     net.get('h1').cmd('ip r add default via 20.0.0.1')
 
-    r1_intfs = [('00:00:66:a8:00:01', '102.168.0.1', '255.255.255.0'),
-                ('00:00:c0:a8:00:01', '192.168.1.1', '255.255.255.0'),
-                ('00:00:c0:a8:00:02', '192.168.2.2', '255.255.255.0')]
+    r1_intfs = [('00:00:66:a8:00:01', '102.168.0.1', '255.255.255.0', 2),
+                ('00:00:c0:a8:00:01', '192.168.1.1', '255.255.255.0', 3),
+                ('00:00:c0:a8:00:02', '192.168.2.2', '255.255.255.0', 4)]
 
-    r2_intfs = [('00:00:14:00:00:01', '20.0.0.1', '255.255.255.0'),
-                ('00:00:c0:a8:01:02', '192.168.1.2', '255.255.255.0'),
-                ('00:00:c0:a8:03:01', '192.168.3.1', '255.255.255.0')]
+    r2_intfs = [('00:00:14:00:00:01', '20.0.0.1', '255.255.255.0', 2),
+                ('00:00:c0:a8:01:02', '192.168.1.2', '255.255.255.0', 3),
+                ('00:00:c0:a8:03:01', '192.168.3.1', '255.255.255.0', 4)]
 
-    r3_intfs = [('00:00:c0:a8:02:01', '192.168.2.1', '255.255.255.0'),
-                ('00:00:c0:a8:03:02', '192.168.3.2', '255.255.255.0')]
+    r3_intfs = [('00:00:c0:a8:02:01', '192.168.2.1', '255.255.255.0', 2),
+                ('00:00:c0:a8:03:02', '192.168.3.2', '255.255.255.0', 3)]
 
     cpu = SwitchController(sw)
     cpu.start()

@@ -1,23 +1,33 @@
 import socket
-from time import time
+from time import time, sleep
 from sniffer import sniff
 from threading import Thread, Event
 from p4runtime_lib.convert import *
 from headers.router_cpu_metadata import RouterCPUMetadata
-from scapy.all import Ether, ARP, IP, ICMP, Raw
+from headers.pwospf import PWOSPF, Hello, LSU, LSUad
+from scapy.all import Ether, ARP, IP, ICMP
 
 
 class Interface:
-    def __init__(self, mac_addr, ip_addr, mask, hello_int):
+    def __init__(self, mac_addr, ip_addr, mask, port, hello_int):
         self.ip_addr = ip_addr
         self.mask = mask
         self.hello_int = hello_int
         self.mac_addr = mac_addr
-        self.neighbours = {}
+        self.port = port
+        self.neighbours = []
+        self.neighbours_times = {}
+
+    def add_neighbor(self, router_id, interface_ip):
+        self.neighbours.append((router_id, interface_ip))
+
+    def remove_neighbor(self, router_id, interface_ip):
+        self.neighbours.remove((router_id, interface_ip))
+        self.neighbours_times.pop((router_id, interface_ip))
 
 
 class RouterController(Thread):
-    def __init__(self, router, router_intfs):
+    def __init__(self, router, router_intfs, area_id=1, lsu_int=30):
         super(RouterController, self).__init__()
         self.router = router
         self.intf = router.intfs[1].name
@@ -25,9 +35,18 @@ class RouterController(Thread):
         self.stored_packet = None
         self.intfs = []
         self.arp_table = {}
+        self.hello_mngrs = []
 
         for intf in router_intfs:
-            self.intfs.append(Interface(intf[0], intf[1], intf[2], 3))
+            self.intfs.append(Interface(intf[0], intf[1], intf[2], intf[3], 3))
+
+        # PWOSPF fields
+        self.router_id = self.intfs[0].ip_addr
+        self.area_id = area_id
+        self.lsu_int = lsu_int
+
+        for i in self.intfs:
+            self.hello_mngrs.append(HelloManager(self, i))
 
     def send(self, port: int, pkt: bytes):
         """
@@ -36,14 +55,11 @@ class RouterController(Thread):
         :param pkt: Packet to send
         """
         packet = Ether(pkt)
-       # packet.show()
+        # packet.show()
         raw_socket = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
         raw_socket.bind((self.router.intfs[port].name, 0))
         raw_socket.send(pkt)
         raw_socket.close()
-
-    def print_arp_table(self):
-        print(self.arp_table)
 
     def handle_arp_reply(self, pkt):
         """
@@ -126,13 +142,8 @@ class RouterController(Thread):
         Create reply to ICMP echo request
         :param pkt: ICMP echo request packet that we answer to
         """
-        # TODO: Fix time of reply stored in data section of packet
-        # Not quite precise, but still fine TODO: get timer in ms not in sec
-        payload = bytes(pkt[ICMP].payload)
-        payload = int(time()).to_bytes(7,byteorder='little') + payload[7:]
-        print(payload.hex())
-        # Create ICMP echo reply
-        new_packet = Ether() / RouterCPUMetadata() / IP() / ICMP() / Raw(payload)
+        # Create ICMP echo reply packet
+        new_packet = Ether() / RouterCPUMetadata() / IP() / ICMP() / pkt[ICMP].payload
 
         new_packet[Ether].dst = pkt[Ether].src
         new_packet[Ether].src = pkt[Ether].dst
@@ -156,7 +167,10 @@ class RouterController(Thread):
         # Send packet to data plane
         self.send(1, bytes(new_packet))
 
-    def handle_pwospf(self, pkt):
+    def handle_hello(self, pkt):
+        pass
+
+    def handle_lsu(self, pkt):
         pass
 
     def handle_packet(self, packet: bytes):
@@ -185,7 +199,12 @@ class RouterController(Thread):
         elif pkt[RouterCPUMetadata].opType == 4:
             self.handle_icmp_request(pkt)
         elif pkt[RouterCPUMetadata].opType == 5:
-            self.handle_pwospf(pkt)
+            self.handle_hello(pkt)
+        elif pkt[RouterCPUMetadata].opType == 6:
+            self.handle_lsu(pkt)
+        else:
+            pkt.show()
+            print("This packet shouldn't be sent to CPU")
 
     def run(self):
         """
@@ -198,14 +217,8 @@ class RouterController(Thread):
         Start the switch controller
         """
         super(RouterController, self).start()
-
-    def join(self, timeout=None):
-        """
-        Join the switch controller
-        :param timeout: Time after joining is timed out
-        """
-        self.stop()
-        super(RouterController, self).join()
+        for mngr in self.hello_mngrs:
+            mngr.start()
 
     def stop(self):
         """
@@ -213,3 +226,51 @@ class RouterController(Thread):
         """
         self.stop_event.set()
         print("Stopping controller....")
+
+
+class HelloManager(Thread):
+    def __init__(self, cntrl: RouterController, intf: Interface):
+        super(HelloManager, self).__init__()
+        self.cntrl = cntrl
+        self.intf = intf
+
+    def check_times(self):
+        now = time()
+        for n in self.intf.neighbours:
+            then = self.intf.neighbours_times.get(n[0], n[1])
+            if (now - then) > 3 * self.intf.hello_int:
+                self.intf.remove_neighbor(n[0], n[1])
+
+    def send_hello(self):
+        packet = Ether() / RouterCPUMetadata() / IP() / PWOSPF() / Hello()
+
+        packet[Ether].src = self.intf.mac_addr
+        packet[Ether].dst = "ff:ff:ff:ff:ff:ff"
+        packet[Ether].type = 0x80b
+
+        packet[RouterCPUMetadata].fromCpu = 1
+        packet[RouterCPUMetadata].origEthType = 0x800
+        packet[RouterCPUMetadata].dstPort = self.intf.port
+
+        packet[IP].src = self.intf.ip_addr
+        packet[IP].dst = "224.0.0.5"
+        packet[IP].proto = 0x59
+
+        packet[PWOSPF].version = 2
+        packet[PWOSPF].type = 0x1
+        packet[PWOSPF].length = 0
+        packet[PWOSPF].routerID = self.cntrl.router_id
+        packet[PWOSPF].areaID = self.cntrl.area_id
+        packet[PWOSPF].checksum = 0
+
+        packet[Hello].netmask = self.intf.mask
+        packet[Hello].helloint = self.intf.hello_int
+
+        self.cntrl.send(1, bytes(packet))
+
+    def run(self):
+        while not self.cntrl.stop_event.is_set():
+            self.send_hello()
+            self.check_times()
+
+            sleep(self.intf.hello_int)

@@ -308,18 +308,21 @@ control ingress_control(inout headers_t hdr,
             }
             cpu_metadata_decap();
         }
-        if(standard_metadata.egress_spec <= 1){
+        if(standard_metadata.egress_spec < 1){
             if(hdr.ipv4.isValid()) {
                 if(hdr.ipv4.ttl>0){
                   if(local_ip_table.apply().miss){
                       ipv4_lpm.apply();
                   }
-                  if(standard_metadata.egress_spec == 1){
-                    if(hdr.icmp.isValid() && hdr.icmp.type == 8
-                    && hdr.icmp.code == 0) {
+                  if(standard_metadata.egress_spec == 1 && standard_metadata.ingress_port != 1){
+                    if(hdr.icmp.isValid() && hdr.icmp.type == 8 && hdr.icmp.code == 0) {
                         send_to_cpu(4);
                     }else if(hdr.pwospf.isValid()){
-                        send_to_cpu(5);
+                        if(hdr.hello.isValid()){
+                            send_to_cpu(5);
+                        }else if(hdr.lsu.isValid()){
+                            send_to_cpu(6);
+                        }
                     }
                   }else if(next_hop != 0){
                     arp_table.apply();
@@ -360,6 +363,7 @@ control egress_control(inout headers_t hdr,
         size = 1024;
         default_action = NoAction();
     }
+
     apply {
         if (hdr.ethernet.isValid()) {
             mac_rewriting_table.apply();
@@ -407,24 +411,18 @@ control compute_checksum_control(inout headers_t hdr,
             hdr.ipv4.hdrChecksum,
             HashAlgorithm.csum16
         );
-    //    update_checksum(
-      //      hdr.icmp.isValid(),
-      //      { hdr.icmp.type,
-      //          hdr.icmp.code},
-      //      hdr.icmp.checksum,
-        //    HashAlgorithm.csum16
-        //);
-        update_checksum(
-            hdr.pwospf.isValid(),
-            { hdr.pwospf.version,
-                hdr.pwospf.type,
-                hdr.pwospf.length,
-                hdr.pwospf.routerID,
-                hdr.pwospf.areaID,
-                hdr.pwospf.auType },
-            hdr.pwospf.checksum,
-            HashAlgorithm.csum16
-        );
+
+        #update_checksum(
+        #    hdr.pwospf.isValid(),
+        #    { hdr.pwospf.version,
+        #        hdr.pwospf.type,
+        #        hdr.pwospf.length,
+        #        hdr.pwospf.routerID,
+        #        hdr.pwospf.areaID,
+        #        hdr.pwospf.auType },
+        #    hdr.pwospf.checksum,
+        #    HashAlgorithm.csum16
+        #);
     }
 }
 
