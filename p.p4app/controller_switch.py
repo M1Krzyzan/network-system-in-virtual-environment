@@ -8,11 +8,17 @@ from scapy.all import Ether
 
 class SwitchController(Thread):
     def __init__(self, switch):
+        """
+        Initialize a SwitchController object.
+
+        Parameters:
+            switch: Switch object to be controlled.
+        """
         super(SwitchController, self).__init__()
-        self.switch = switch
-        self.intfs = switch.intfs[1].name
-        self.stop_event = Event()
-        self.forwarding_table = {}
+        self.switch = switch  # Switch object to be controlled
+        self.intfs = switch.intfs[1].name  # Interface associated with the switch
+        self.stop_event = Event()  # Event to signal stopping the controller
+        self.forwarding_table = {}  # Forwarding table to store routing information
 
     def add_forwarding_table_entry(self, port: int, mac_addr: str):
         """
@@ -70,14 +76,6 @@ class SwitchController(Thread):
         Start the switch controller
         """
         super(SwitchController, self).start()
-
-    def join(self, timeout=None):
-        """
-        Join the switch controller
-        :param timeout: Time after joining is timed out
-        """
-        self.stop()
-        super(SwitchController, self).join()
 
     def stop(self):
         """
