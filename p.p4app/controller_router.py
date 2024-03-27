@@ -201,28 +201,28 @@ class RouterController(Thread):
        """
         # Create ICMP echo reply packet
 
-    new_packet = Ether() / RouterCPUMetadata() / IP() / ICMP() / pkt[ICMP].payload
+        new_packet = Ether() / RouterCPUMetadata() / IP() / ICMP() / pkt[ICMP].payload
 
-    # Setting up ICMP echo reply packet fields
-    new_packet[Ether].dst = pkt[Ether].src
-    new_packet[Ether].src = pkt[Ether].dst
+        # Setting up ICMP echo reply packet fields
+        new_packet[Ether].dst = pkt[Ether].src
+        new_packet[Ether].src = pkt[Ether].dst
 
-    new_packet[RouterCPUMetadata].fromCpu = 1
-    new_packet[RouterCPUMetadata].origEthType = 0x800
-    new_packet[RouterCPUMetadata].srcPort = pkt[RouterCPUMetadata].dstPort
-    new_packet[RouterCPUMetadata].dstPort = pkt[RouterCPUMetadata].srcPort
+        new_packet[RouterCPUMetadata].fromCpu = 1
+        new_packet[RouterCPUMetadata].origEthType = 0x800
+        new_packet[RouterCPUMetadata].srcPort = pkt[RouterCPUMetadata].dstPort
+        new_packet[RouterCPUMetadata].dstPort = pkt[RouterCPUMetadata].srcPort
 
-    new_packet[IP].src = pkt[IP].dst
-    new_packet[IP].dst = pkt[IP].src
-    new_packet[IP].ttl = 64
+        new_packet[IP].src = pkt[IP].dst
+        new_packet[IP].dst = pkt[IP].src
+        new_packet[IP].ttl = 64
 
-    new_packet[ICMP].type = 0
-    new_packet[ICMP].code = 0
-    new_packet[ICMP].seq = pkt[ICMP].seq
-    new_packet[ICMP].id = pkt[ICMP].id
+        new_packet[ICMP].type = 0
+        new_packet[ICMP].code = 0
+        new_packet[ICMP].seq = pkt[ICMP].seq
+        new_packet[ICMP].id = pkt[ICMP].id
 
-    # Send packet to data plane
-    self.send(1, bytes(new_packet))
+        # Send packet to data plane
+        self.send(1, bytes(new_packet))
 
     def handle_hello(self, pkt):
         """
