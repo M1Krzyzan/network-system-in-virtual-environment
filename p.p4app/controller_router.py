@@ -59,6 +59,7 @@ class Interface:
         """
         self.neighbours_times[(router_id, intf_ip)] = time()  # Update neighbor timestamp
 
+
 class RouterController(Thread):
     def __init__(self, router, router_intfs, area_id=1, lsu_int=30):
         """
@@ -87,11 +88,13 @@ class RouterController(Thread):
         self.router_id = self.intfs[0].ip_addr
         self.area_id = area_id
         self.lsu_int = lsu_int
+        self.last_lsu_packets = {}
+        self.lsu_seq = 0
 
         # Initialize HelloManager for each interface
         for i in self.intfs:
             self.hello_mngrs.append(HelloManager(self, i))
-            
+
     def send(self, port: int, pkt: bytes):
         """
         Send packet to correct interface which is identified by port of switch
@@ -105,18 +108,11 @@ class RouterController(Thread):
         raw_socket.send(pkt)
         raw_socket.close()
 
-    def print_neigh(self):
-        """
-        Print neighbors of each interface.
-        """
-        for intf in self.intfs:
-            print("Intf:", intf.ip_addr, "neigh:", intf.neighbours)
-
     def handle_arp_reply(self, pkt):
         """
         Process arp reply by adding entry of requested pair - mac address and ip address
         to data plane arp table and copy contained by controller
-        
+
         Parameters:
             pkt: Packet to process
         """
@@ -136,11 +132,11 @@ class RouterController(Thread):
             self.stored_packet[Ether].dst = self.arp_table[self.stored_packet[RouterCPUMetadata].nextHop]
             self.send(1, bytes(self.stored_packet))
             self.stored_packet = None
-            
+
     def send_arp_request(self, pkt):
         """
         Create arp request packet, which will be sent to port with unknown mac address
-        
+
         Parameters:
             pkt: Packet stored to be sent after reply will arrive
         """
@@ -149,7 +145,7 @@ class RouterController(Thread):
         # Create arp request packet
         new_packet = Ether() / RouterCPUMetadata() / ARP()
 
-         # Setting up ARP request packet fields
+        # Setting up ARP request packet fields
         new_packet[Ether].dst = "ff:ff:ff:ff:ff:ff"
         new_packet[Ether].src = self.intfs[pkt[RouterCPUMetadata].dstPort - 2].mac_addr
         new_packet[Ether].type = 0x80b
@@ -172,13 +168,13 @@ class RouterController(Thread):
     def send_icmp_time_exceeded(self, pkt):
         """
         Create ICMP time exceeded packet, which will be sent to source after ttl is 0
-        
+
         Parameters:
             pkt: Packet whose ttl is 0
         """
         # Create ICMP time exceeded packet
         new_packet = Ether() / RouterCPUMetadata() / IP() / ICMP() / pkt[IP]
-        
+
         # Setting up ICMP time exceeded packet fields
         new_packet[RouterCPUMetadata].fromCpu = 1
         new_packet[RouterCPUMetadata].srcPort = 1
@@ -197,40 +193,41 @@ class RouterController(Thread):
         self.send(1, bytes(new_packet))
 
     def handle_icmp_request(self, pkt):
-         """
-        Create reply to ICMP echo request
-        
-        Parameters:
-            pkt: ICMP echo request packet that we answer to
         """
+       Create reply to ICMP echo request
+
+       Parameters:
+           pkt: ICMP echo request packet that we answer to
+       """
         # Create ICMP echo reply packet
-        new_packet = Ether() / RouterCPUMetadata() / IP() / ICMP() / pkt[ICMP].payload
 
-        # Setting up ICMP echo reply packet fields
-        new_packet[Ether].dst = pkt[Ether].src
-        new_packet[Ether].src = pkt[Ether].dst
+    new_packet = Ether() / RouterCPUMetadata() / IP() / ICMP() / pkt[ICMP].payload
 
-        new_packet[RouterCPUMetadata].fromCpu = 1
-        new_packet[RouterCPUMetadata].origEthType = 0x800
-        new_packet[RouterCPUMetadata].srcPort = pkt[RouterCPUMetadata].dstPort
-        new_packet[RouterCPUMetadata].dstPort = pkt[RouterCPUMetadata].srcPort
+    # Setting up ICMP echo reply packet fields
+    new_packet[Ether].dst = pkt[Ether].src
+    new_packet[Ether].src = pkt[Ether].dst
 
-        new_packet[IP].src = pkt[IP].dst
-        new_packet[IP].dst = pkt[IP].src
-        new_packet[IP].ttl = 64
+    new_packet[RouterCPUMetadata].fromCpu = 1
+    new_packet[RouterCPUMetadata].origEthType = 0x800
+    new_packet[RouterCPUMetadata].srcPort = pkt[RouterCPUMetadata].dstPort
+    new_packet[RouterCPUMetadata].dstPort = pkt[RouterCPUMetadata].srcPort
 
-        new_packet[ICMP].type = 0
-        new_packet[ICMP].code = 0
-        new_packet[ICMP].seq = pkt[ICMP].seq
-        new_packet[ICMP].id = pkt[ICMP].id
+    new_packet[IP].src = pkt[IP].dst
+    new_packet[IP].dst = pkt[IP].src
+    new_packet[IP].ttl = 64
 
-        # Send packet to data plane
-        self.send(1, bytes(new_packet))
+    new_packet[ICMP].type = 0
+    new_packet[ICMP].code = 0
+    new_packet[ICMP].seq = pkt[ICMP].seq
+    new_packet[ICMP].id = pkt[ICMP].id
+
+    # Send packet to data plane
+    self.send(1, bytes(new_packet))
 
     def handle_hello(self, pkt):
         """
         Handle incoming Hello packets.
-        
+
         Parameters:
             pkt: Hello packet received
         """
@@ -255,13 +252,25 @@ class RouterController(Thread):
             intf.add_neighbor(router_id, intf_ip)
 
     def handle_lsu(self, pkt):
-        pass
+        if pkt[PWOSPF].version != 2 or pkt[PWOSPF].areaID != self.area_id:
+            return
+        if pkt[PWOSPF].auType != 0 or pkt[PWOSPF].auth != 0:
+            return
+
+        router_id = pkt[PWOSPF].routerID
+        last_packet = self.last_lsu_packets[router_id][0]
+        if pkt[IP].src in self.intfs:
+            return
+        if pkt[LSU].sequence == last_packet[LSU].sequence:
+            return
+
+        self.last_lsu_packets[router_id] = [pkt, time()]
 
     # Method to handle incoming packets
     def handle_packet(self, packet: bytes):
         """
         Process packet received from sniffer
-        
+
         Parameters:
             packet: Packet received from sniffer
         """
@@ -315,6 +324,7 @@ class RouterController(Thread):
         self.stop_event.set()
         print("Stopping controller....")
 
+
 class HelloManager(Thread):
     def __init__(self, cntrl: RouterController, intf: Interface):
         """
@@ -336,7 +346,7 @@ class HelloManager(Thread):
         for n in self.intf.neighbours:
             then = self.intf.neighbours_times.setdefault((n[0], n[1]), now)
             if (now - then) > 3 * self.intf.hello_int:
-                print(now-then)
+                print(now - then)
                 self.intf.remove_neighbor(n[0], n[1])
 
     def send_hello(self):
@@ -345,7 +355,7 @@ class HelloManager(Thread):
         """
         # Construct Hello packet
         packet = Ether() / RouterCPUMetadata() / IP() / PWOSPF() / Hello()
-        
+
         # Setting up Hello packet fields
         packet[Ether].src = self.intf.mac_addr
         packet[Ether].dst = "ff:ff:ff:ff:ff:ff"
@@ -361,14 +371,14 @@ class HelloManager(Thread):
 
         packet[PWOSPF].version = 2
         packet[PWOSPF].type = 0x1
-        packet[PWOSPF].length = 0
+        packet[PWOSPF].length = len(packet[PWOSPF])
         packet[PWOSPF].routerID = self.cntrl.router_id
         packet[PWOSPF].areaID = self.cntrl.area_id
         packet[PWOSPF].checksum = 0
 
         packet[Hello].netmask = self.intf.mask
         packet[Hello].helloint = self.intf.hello_int
-        
+
         # Send Hello packet
         self.cntrl.send(1, bytes(packet))
 
@@ -380,3 +390,53 @@ class HelloManager(Thread):
             self.send_hello()  # Send Hello packets
             self.check_times()  # Check neighbor timestamps
             sleep(self.intf.hello_int)  # Wait for Hello interval
+
+
+class LSUManager(Thread):
+    def __init__(self, cntrl: RouterController, lsu_int: int):
+        super(LSUManager, self).__init__()
+        self.cntrl = cntrl
+        self.lsu_int = lsu_int
+
+    def send_lsu(self):
+        # Create adjacency list for adList field in LSU packet for each interface
+        adjacency_list = []
+        for intf in self.cntrl.intfs:
+            for neighbor in intf.neighbours:
+                pkt = LSUad()
+                pkt[LSUad].subnet = intf.ip_addr
+                pkt[LSUad].mask = intf.mask
+                pkt[LSUad].routerID = neighbor[0]
+                adjacency_list.append(pkt)
+
+        # Create LSU packet
+        packet = Ether() / RouterCPUMetadata() / IP() / PWOSPF() / LSU()
+
+        packet[Ether].dst = "ff:ff:ff:ff:ff:ff"
+        packet[Ether].type = 0x80b
+
+        packet[RouterCPUMetadata].fromCpu = 1
+        packet[RouterCPUMetadata].origEthType = 0x800
+
+        packet[IP].src = self.cntrl.router_id
+        packet[IP].proto = 0x59
+
+        packet[PWOSPF].version = 2
+        packet[PWOSPF].type = 0x4
+        packet[PWOSPF].length = len(packet[PWOSPF])
+        packet[PWOSPF].routerID = self.cntrl.router_id
+        packet[PWOSPF].areaID = self.cntrl.area_id
+        packet[PWOSPF].checksum = 0
+
+        packet[LSU].sequence = self.cntrl.lsu_seq
+        packet[LSU].ttl = 64
+        packet[LSU].numAds = len(adjacency_list)
+        packet[LSU].sequence = adjacency_list
+
+        self.cntrl.send(1, bytes(packet))
+
+    def run(self):
+        while not self.cntrl.stop_event.is_set():
+            self.send_lsu()
+
+            sleep(self.lsu_int)

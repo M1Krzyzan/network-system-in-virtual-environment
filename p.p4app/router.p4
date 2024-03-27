@@ -389,6 +389,31 @@ control deparser(packet_out packet, in headers_t hdr) {
 control verify_checksum_control(inout headers_t hdr,
                                 inout my_metadata_t my_metadata) {
     apply {
+        verify_checksum(hdr.ipv4.isValid(),
+        { hdr.ipv4.version,
+                hdr.ipv4.ihl,
+                hdr.ipv4.diffserv,
+                hdr.ipv4.totalLen,
+                hdr.ipv4.identification,
+                hdr.ipv4.flags,
+                hdr.ipv4.fragOffset,
+                hdr.ipv4.ttl,
+                hdr.ipv4.protocol,
+                hdr.ipv4.srcAddr,
+                hdr.ipv4.dstAddr },
+            hdr.ipv4.hdrChecksum,
+            HashAlgorithm.csum16
+        );
+        #verify_checksum(hdr.pwospf.isValid(),
+        #    { hdr.pwospf.version,
+        #        hdr.pwospf.type,
+        #        hdr.pwospf.length,
+        #        hdr.pwospf.routerID,
+        #        hdr.pwospf.areaID,
+        #        hdr.pwospf.auType },
+        #    hdr.pwospf.checksum,
+        #    HashAlgorithm.csum16
+        #);
     }
 }
 
@@ -419,7 +444,11 @@ control compute_checksum_control(inout headers_t hdr,
         #        hdr.pwospf.length,
         #        hdr.pwospf.routerID,
         #        hdr.pwospf.areaID,
-        #        hdr.pwospf.auType },
+        #        hdr.pwospf.auType,
+        #        hdr.hello.netMask,
+        #        hdr.hello.helloInt,
+        #        hdr.hello.padding
+        #    },
         #    hdr.pwospf.checksum,
         #    HashAlgorithm.csum16
         #);
