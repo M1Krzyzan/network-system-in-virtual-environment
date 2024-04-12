@@ -75,6 +75,7 @@ class RouterController(Thread):
             lsu_int (int): LSU interval.
         """
         super(RouterController, self).__init__()
+        self.init = None
         self.prev_pwospf_table = {}
         self.table_entries = []
         self.pwospf_table = {}
@@ -291,7 +292,8 @@ class RouterController(Thread):
             }
             self.prev_pwospf_table = self.pwospf_table
             self.djikstra()
-            if self.prev_pwospf_table != self.pwospf_table or len(self.pwospf_table)==0:
+            if self.prev_pwospf_table != self.pwospf_table or self.init:
+                self.init = False
                 self.update_routing_table()
             self.lsu_mngr.flood_lsu_packet(pkt)
 
