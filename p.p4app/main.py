@@ -176,22 +176,22 @@ def main():
                         action_name='ingress_control.set_sintf',
                         action_params={'egress_port': 1})
 
-    r1.insertTableEntry(table_name='ingress_control.local_ip_table',
-                        match_fields={'hdr.ipv4.dstAddr': "102.168.0.2"},
-                        action_name='ingress_control.set_sintf',
-                        action_params={'egress_port': 2})
-    r1.insertTableEntry(table_name='ingress_control.local_ip_table',
-                        match_fields={'hdr.ipv4.dstAddr': "102.168.0.3"},
-                        action_name='ingress_control.set_sintf',
-                        action_params={'egress_port': 2})
-    r1.insertTableEntry(table_name='ingress_control.local_ip_table',
-                        match_fields={'hdr.ipv4.dstAddr': "192.168.1.2"},
-                        action_name='ingress_control.set_sintf',
-                        action_params={'egress_port': 3})
-    r1.insertTableEntry(table_name='ingress_control.local_ip_table',
-                        match_fields={'hdr.ipv4.dstAddr': "192.168.2.1"},
-                        action_name='ingress_control.set_sintf',
-                        action_params={'egress_port': 4})
+    # r1.insertTableEntry(table_name='ingress_control.local_ip_table',
+    #                     match_fields={'hdr.ipv4.dstAddr': "102.168.0.2"},
+    #                     action_name='ingress_control.set_sintf',
+    #                     action_params={'egress_port': 2})
+    # r1.insertTableEntry(table_name='ingress_control.local_ip_table',
+    #                     match_fields={'hdr.ipv4.dstAddr': "102.168.0.3"},
+    #                     action_name='ingress_control.set_sintf',
+    #                     action_params={'egress_port': 2})
+    # r1.insertTableEntry(table_name='ingress_control.local_ip_table',
+    #                     match_fields={'hdr.ipv4.dstAddr': "192.168.1.2"},
+    #                     action_name='ingress_control.set_sintf',
+    #                     action_params={'egress_port': 3})
+    # r1.insertTableEntry(table_name='ingress_control.local_ip_table',
+    #                     match_fields={'hdr.ipv4.dstAddr': "192.168.2.1"},
+    #                     action_name='ingress_control.set_sintf',
+    #                     action_params={'egress_port': 4})
 
     r2.insertTableEntry(table_name='ingress_control.local_ip_table',
                         match_fields={'hdr.ipv4.dstAddr': "224.0.0.5"},
@@ -210,18 +210,18 @@ def main():
                         action_name='ingress_control.set_sintf',
                         action_params={'egress_port': 1})
 
-    r2.insertTableEntry(table_name='ingress_control.local_ip_table',
-                        match_fields={'hdr.ipv4.dstAddr': "20.0.0.2"},
-                        action_name='ingress_control.set_sintf',
-                        action_params={'egress_port': 2})
-    r2.insertTableEntry(table_name='ingress_control.local_ip_table',
-                        match_fields={'hdr.ipv4.dstAddr': "192.168.1.1"},
-                        action_name='ingress_control.set_sintf',
-                        action_params={'egress_port': 3})
-    r2.insertTableEntry(table_name='ingress_control.local_ip_table',
-                        match_fields={'hdr.ipv4.dstAddr': "192.168.3.2"},
-                        action_name='ingress_control.set_sintf',
-                        action_params={'egress_port': 4})
+    # r2.insertTableEntry(table_name='ingress_control.local_ip_table',
+    #                     match_fields={'hdr.ipv4.dstAddr': "20.0.0.2"},
+    #                     action_name='ingress_control.set_sintf',
+    #                     action_params={'egress_port': 2})
+    # r2.insertTableEntry(table_name='ingress_control.local_ip_table',
+    #                     match_fields={'hdr.ipv4.dstAddr': "192.168.1.1"},
+    #                     action_name='ingress_control.set_sintf',
+    #                     action_params={'egress_port': 3})
+    # r2.insertTableEntry(table_name='ingress_control.local_ip_table',
+    #                     match_fields={'hdr.ipv4.dstAddr': "192.168.3.2"},
+    #                     action_name='ingress_control.set_sintf',
+    #                     action_params={'egress_port': 4})
 
     r3.insertTableEntry(table_name='ingress_control.local_ip_table',
                         match_fields={'hdr.ipv4.dstAddr': "224.0.0.5"},
@@ -236,14 +236,14 @@ def main():
                         action_name='ingress_control.set_sintf',
                         action_params={'egress_port': 1})
 
-    r3.insertTableEntry(table_name='ingress_control.local_ip_table',
-                        match_fields={'hdr.ipv4.dstAddr': "192.168.2.2"},
-                        action_name='ingress_control.set_sintf',
-                        action_params={'egress_port': 2})
-    r3.insertTableEntry(table_name='ingress_control.local_ip_table',
-                        match_fields={'hdr.ipv4.dstAddr': "192.168.3.1"},
-                        action_name='ingress_control.set_sintf',
-                        action_params={'egress_port': 3})
+    # r3.insertTableEntry(table_name='ingress_control.local_ip_table',
+    #                     match_fields={'hdr.ipv4.dstAddr': "192.168.2.2"},
+    #                     action_name='ingress_control.set_sintf',
+    #                     action_params={'egress_port': 2})
+    # r3.insertTableEntry(table_name='ingress_control.local_ip_table',
+    #                     match_fields={'hdr.ipv4.dstAddr': "192.168.3.1"},
+    #                     action_name='ingress_control.set_sintf',
+    #                     action_params={'egress_port': 3})
     # ARP TABLE
     # r1.insertTableEntry(table_name='ingress_control.arp_table',
     #                    match_fields={'next_hop': "192.168.1.2"},
@@ -285,36 +285,36 @@ def main():
     #                    action_params={'mac_dest': "00:00:66:a8:00:03"})
 
     # routing table
-    r1.insertTableEntry(table_name='ingress_control.ipv4_lpm',
-                        default_action=True,
-                        action_name='ingress_control.set_nhop',
-                        action_params={'nhop': '192.168.2.1', 'egress_port': 3})
-    r1.insertTableEntry(table_name='ingress_control.ipv4_lpm',
-                        match_fields={'hdr.ipv4.dstAddr': ["20.0.0.0", 24]},
-                        action_name='ingress_control.set_nhop',
-                        action_params={'nhop': '192.168.1.2', 'egress_port': 3})
-
-    r2.insertTableEntry(table_name='ingress_control.ipv4_lpm',
-                        default_action=True,
-                        action_name='ingress_control.set_nhop',
-                        action_params={'nhop': '192.168.3.2', 'egress_port': 3})
-    r2.insertTableEntry(table_name='ingress_control.ipv4_lpm',
-                        match_fields={'hdr.ipv4.dstAddr': ["102.168.0.0", 24]},
-                        action_name='ingress_control.set_nhop',
-                        action_params={'nhop': '192.168.1.1', 'egress_port': 3})
-    r2.insertTableEntry(table_name='ingress_control.ipv4_lpm',
-                        match_fields={'hdr.ipv4.dstAddr': ["192.168.2.0", 24]},
-                        action_name='ingress_control.set_nhop',
-                        action_params={'nhop': '192.168.3.1', 'egress_port': 4})
-
-    r3.insertTableEntry(table_name='ingress_control.ipv4_lpm',
-                        match_fields={'hdr.ipv4.dstAddr': ["102.168.0.0", 24]},
-                        action_name='ingress_control.set_nhop',
-                        action_params={'nhop': '192.168.2.2', 'egress_port': 2})
-    r3.insertTableEntry(table_name='ingress_control.ipv4_lpm',
-                        match_fields={'hdr.ipv4.dstAddr': ["20.0.0.0", 24]},
-                        action_name='ingress_control.set_nhop',
-                        action_params={'nhop': '192.168.3.1', 'egress_port': 3})
+    # r1.insertTableEntry(table_name='ingress_control.ipv4_lpm',
+    #                     default_action=True,
+    #                     action_name='ingress_control.set_nhop',
+    #                     action_params={'nhop': '192.168.2.1', 'egress_port': 3})
+    # r1.insertTableEntry(table_name='ingress_control.ipv4_lpm',
+    #                     match_fields={'hdr.ipv4.dstAddr': ["20.0.0.0", 24]},
+    #                     action_name='ingress_control.set_nhop',
+    #                     action_params={'nhop': '192.168.1.2', 'egress_port': 3})
+    #
+    # r2.insertTableEntry(table_name='ingress_control.ipv4_lpm',
+    #                     default_action=True,
+    #                     action_name='ingress_control.set_nhop',
+    #                     action_params={'nhop': '192.168.3.2', 'egress_port': 3})
+    # r2.insertTableEntry(table_name='ingress_control.ipv4_lpm',
+    #                     match_fields={'hdr.ipv4.dstAddr': ["102.168.0.0", 24]},
+    #                     action_name='ingress_control.set_nhop',
+    #                     action_params={'nhop': '192.168.1.1', 'egress_port': 3})
+    # r2.insertTableEntry(table_name='ingress_control.ipv4_lpm',
+    #                     match_fields={'hdr.ipv4.dstAddr': ["192.168.2.0", 24]},
+    #                     action_name='ingress_control.set_nhop',
+    #                     action_params={'nhop': '192.168.3.1', 'egress_port': 4})
+    #
+    # r3.insertTableEntry(table_name='ingress_control.ipv4_lpm',
+    #                     match_fields={'hdr.ipv4.dstAddr': ["102.168.0.0", 24]},
+    #                     action_name='ingress_control.set_nhop',
+    #                     action_params={'nhop': '192.168.2.2', 'egress_port': 2})
+    # r3.insertTableEntry(table_name='ingress_control.ipv4_lpm',
+    #                     match_fields={'hdr.ipv4.dstAddr': ["20.0.0.0", 24]},
+    #                     action_name='ingress_control.set_nhop',
+    #                     action_params={'nhop': '192.168.3.1', 'egress_port': 3})
 
     # src mac rewrite
     r1.insertTableEntry(table_name='egress_control.mac_rewriting_table',

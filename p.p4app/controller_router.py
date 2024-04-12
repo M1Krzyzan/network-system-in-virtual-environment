@@ -1,11 +1,14 @@
+import heapq
 import socket
+from collections import defaultdict
 from time import time, sleep
 from sniffer import sniff
-from threading import Thread, Event
+from threading import Thread, Event, Timer
 from p4runtime_lib.convert import *
 from headers.router_cpu_metadata import RouterCPUMetadata
 from headers.pwospf import PWOSPF, Hello, LSU, LSUad
 from scapy.all import Ether, ARP, IP, ICMP
+from utils import ipprefix, Graph
 
 
 class Interface:
@@ -61,7 +64,7 @@ class Interface:
 
 
 class RouterController(Thread):
-    def __init__(self, router, router_intfs, area_id=1, lsu_int=30):
+    def __init__(self, router, router_intfs, area_id=1, lsu_int=10, start_wait=0.3):
         """
         Initialize a RouterController object.
 
@@ -72,13 +75,18 @@ class RouterController(Thread):
             lsu_int (int): LSU interval.
         """
         super(RouterController, self).__init__()
+        self.prev_pwospf_table = {}
+        self.table_entries = []
+        self.pwospf_table = {}
         self.router = router
         self.intf = router.intfs[1].name
         self.stop_event = Event()
+        self.start_wait = start_wait
         self.stored_packet = None
         self.intfs = []  # List to store router interfaces
         self.arp_table = {}  # ARP table
         self.hello_mngrs = []  # List to store HelloManager instances
+        self.lsu_mngr = LSUManager(self)
 
         # Initialize interfaces
         for intf in router_intfs:
@@ -90,6 +98,8 @@ class RouterController(Thread):
         self.lsu_int = lsu_int
         self.last_lsu_packets = {}
         self.lsu_seq = 0
+        # topology database, which is dictionary for each pair of routers with entries (subnet, mask)
+        self.lsu_db = {}
 
         # Initialize HelloManager for each interface
         for i in self.intfs:
@@ -256,15 +266,34 @@ class RouterController(Thread):
             return
         if pkt[PWOSPF].auType != 0 or pkt[PWOSPF].auth != 0:
             return
-
         router_id = pkt[PWOSPF].routerID
-        last_packet = self.last_lsu_packets[router_id][0]
-        if pkt[IP].src in self.intfs:
+
+        if router_id == self.router_id:
             return
-        if pkt[LSU].sequence == last_packet[LSU].sequence:
+        if router_id not in self.lsu_db:
+            self.lsu_db[router_id] = {
+                'sequence': None,
+                'last_update': 0,
+                'networks': []
+            }
+        if router_id in self.lsu_db and pkt[LSU].sequence == self.lsu_db[router_id]["sequence"]:
             return
 
-        self.last_lsu_packets[router_id] = [pkt, time()]
+        adj_list = [(lsu_ad.subnet, lsu_ad.mask, lsu_ad.routerID) for lsu_ad in pkt[LSU].adList]
+        if router_id in self.lsu_db and adj_list == self.lsu_db[router_id]["networks"]:
+            self.lsu_db[router_id]["last_update"] = time()
+            self.lsu_db[router_id]["sequence"] = pkt[LSU].sequence
+        else:
+            self.lsu_db[router_id] = {
+                'sequence': pkt[LSU].sequence,
+                'last_update': time(),
+                'networks': [(lsu_ad.subnet, lsu_ad.mask, lsu_ad.routerID) for lsu_ad in pkt[LSU].adList]
+            }
+            self.prev_pwospf_table = self.pwospf_table
+            self.djikstra()
+            if self.prev_pwospf_table != self.pwospf_table or len(self.pwospf_table)==0:
+                self.update_routing_table()
+            self.lsu_mngr.flood_lsu_packet(pkt)
 
     # Method to handle incoming packets
     def handle_packet(self, packet: bytes):
@@ -316,6 +345,8 @@ class RouterController(Thread):
         super(RouterController, self).start()
         for mngr in self.hello_mngrs:
             mngr.start()
+        self.lsu_mngr.start()
+        sleep(self.start_wait)
 
     def stop(self):
         """
@@ -323,6 +354,80 @@ class RouterController(Thread):
         """
         self.stop_event.set()
         print("Stopping controller....")
+
+    def djikstra(self):
+        networks = {}
+        g = Graph()
+        for rid, lsa in self.lsu_db.items():
+            for neigh in lsa['networks']:
+                subnet, netmask, neighid = neigh
+                g.add_edge(rid, neighid)
+                netaddr = ipprefix(subnet, netmask)
+                if netaddr not in networks:
+                    networks[netaddr] = set()
+                networks[netaddr].add(rid)
+
+        next_hops = g.find_shortest_paths(self.router_id)
+
+        for netaddr, nodes in networks.items():
+
+            if len(nodes) == 1:
+
+                dst = nodes.pop()
+
+                if dst == self.router_id:
+                    nhop = dst
+                else:
+                    nhop, _ = next_hops.get(dst, (None, None))
+            elif len(nodes) == 2:
+
+                n1, n2 = nodes
+
+                if self.router_id in nodes:
+                    nhop = (n2 if n1 == self.router_id else n1)
+                else:
+                    dst = (n1 if next_hops[n1][1] < next_hops[n2][1] else n2)
+                    nhop, _ = next_hops[dst]
+
+            for intf in self.intfs:
+                if len(intf.neighbours) == 0:
+                    gateway = '0.0.0.0'
+                    r = (gateway, intf.port)
+                    self.pwospf_table[netaddr] = r
+
+                for neigh in intf.neighbours:
+                    if neigh[0] == nhop:
+
+                        gateway = neigh[0]
+
+                        if ipprefix(intf.ip_addr, intf.mask) == netaddr:
+                            gateway = '0.0.0.0'
+                        if gateway is not None:
+                            r = (gateway, intf.port)
+                            self.pwospf_table[netaddr] = r
+                        break
+
+    def clear_routing_table(self):
+        n = len(self.table_entries)
+        for i in range(n):
+            ip, mask, next_hop, port = self.table_entries.pop(0)
+            self.router.removeTableEntry(table_name='ingress_control.ipv4_lpm',
+                                         match_fields={'hdr.ipv4.dstAddr': [ip, mask]},
+                                         action_name='ingress_control.set_nhop',
+                                         action_params={'nhop': next_hop, 'egress_port': port})
+
+    def update_routing_table(self):
+        if len(self.table_entries) != 0:
+            self.clear_routing_table()
+        for subnet, route in self.pwospf_table.items():
+            ip, mask = subnet.split('/')
+            next_hop, port = route
+            self.router.insertTableEntry(table_name='ingress_control.ipv4_lpm',
+                                         match_fields={'hdr.ipv4.dstAddr': [ip, int(mask)]},
+                                         action_name='ingress_control.set_nhop',
+                                         action_params={'nhop': next_hop, 'egress_port': port})
+            self.table_entries.append((ip, int(mask), next_hop, port))
+        self.router.printTableEntries()
 
 
 class HelloManager(Thread):
@@ -346,7 +451,6 @@ class HelloManager(Thread):
         for n in self.intf.neighbours:
             then = self.intf.neighbours_times.setdefault((n[0], n[1]), now)
             if (now - then) > 3 * self.intf.hello_int:
-                print(now - then)
                 self.intf.remove_neighbor(n[0], n[1])
 
     def send_hello(self):
@@ -393,32 +497,38 @@ class HelloManager(Thread):
 
 
 class LSUManager(Thread):
-    def __init__(self, cntrl: RouterController, lsu_int: int):
+    def __init__(self, cntrl: RouterController, lsu_int: int = 10):
         super(LSUManager, self).__init__()
         self.cntrl = cntrl
         self.lsu_int = lsu_int
+        self.last_called = time() - 5
 
     def send_lsu(self):
         # Create adjacency list for adList field in LSU packet for each interface
         adjacency_list = []
         for intf in self.cntrl.intfs:
-            for neighbor in intf.neighbours:
-                pkt = LSUad()
-                pkt[LSUad].subnet = intf.ip_addr
-                pkt[LSUad].mask = intf.mask
-                pkt[LSUad].routerID = neighbor[0]
-                adjacency_list.append(pkt)
+            if len(intf.neighbours):
+                for neighbor in intf.neighbours:
+                    hdr = LSUad()
+                    hdr[LSUad].subnet = intf.ip_addr
+                    hdr[LSUad].mask = intf.mask
+                    hdr[LSUad].routerID = neighbor[0]
+                    adjacency_list.append(hdr)
+            else:
+                hdr = LSUad()
+                hdr[LSUad].subnet = intf.ip_addr
+                hdr[LSUad].mask = intf.mask
+                hdr[LSUad].routerID = "0.0.0.0"
+                adjacency_list.append(hdr)
 
         # Create LSU packet
         packet = Ether() / RouterCPUMetadata() / IP() / PWOSPF() / LSU()
 
-        packet[Ether].dst = "ff:ff:ff:ff:ff:ff"
         packet[Ether].type = 0x80b
 
         packet[RouterCPUMetadata].fromCpu = 1
         packet[RouterCPUMetadata].origEthType = 0x800
-
-        packet[IP].src = self.cntrl.router_id
+        packet[RouterCPUMetadata].srcPort = 1
         packet[IP].proto = 0x59
 
         packet[PWOSPF].version = 2
@@ -431,12 +541,55 @@ class LSUManager(Thread):
         packet[LSU].sequence = self.cntrl.lsu_seq
         packet[LSU].ttl = 64
         packet[LSU].numAds = len(adjacency_list)
-        packet[LSU].sequence = adjacency_list
+        packet[LSU].adList = adjacency_list
 
-        self.cntrl.send(1, bytes(packet))
+        self.cntrl.lsu_db[self.cntrl.router_id] = {
+            'sequence': packet[LSU].sequence,
+            'last_update': time(),
+            'networks': [(lsu_ad.subnet, lsu_ad.mask, lsu_ad.routerID) for lsu_ad in packet[LSU].adList]
+        }
+        packet[LSU].ttl -= 1
+        if packet[LSU].ttl - 1 > 0:
+            for interface in self.cntrl.intfs:
+                for neighbor in interface.neighbours:
+                    new_packet = packet
+                    if interface.ip_addr != neighbor[1] and interface.port != packet[RouterCPUMetadata].srcPort:
+                        # add individual information about each interface and neighbour to packet
+                        new_packet[RouterCPUMetadata].dstPort = interface.port
+                        new_packet[IP].src = interface.ip_addr
+                        new_packet[IP].dst = neighbor[1]
+
+                        # send created packet to data plane
+                        self.cntrl.send(1, bytes(new_packet))
+
+        self.last_called = time()
+        self.cntrl.lsu_seq += 1
+
+    def start(self):
+        super(LSUManager, self).start()
+        sleep(0.3)
 
     def run(self):
         while not self.cntrl.stop_event.is_set():
-            self.send_lsu()
+            if time() - self.last_called >= self.lsu_int:
+                self.send_lsu()
+            for entry in self.cntrl.lsu_db:
+                if time()-self.cntrl.lsu_db[entry]['last_update']>3*self.lsu_int:
+                    del self.cntrl.lsu_db[entry]
+            sleep(0.1)
 
-            sleep(self.lsu_int)
+    def flood_lsu_packet(self, packet):
+        packet[LSU].sequence += 1
+        packet[LSU].ttl -= 1
+        if packet[LSU].ttl - 1 > 0:
+            for interface in self.cntrl.intfs:
+                for neighbor in interface.neighbours:
+                    new_packet = packet
+                    if interface.ip_addr != neighbor[1] and interface.port != packet[RouterCPUMetadata].srcPort:
+                        # add individual information about each interface and neighbour to packet
+                        new_packet[RouterCPUMetadata].dstPort = interface.port
+                        new_packet[IP].src = interface.ip_addr
+                        new_packet[IP].dst = neighbor[1]
+
+                        # send created packet to data plane
+                        self.cntrl.send(1, bytes(new_packet))

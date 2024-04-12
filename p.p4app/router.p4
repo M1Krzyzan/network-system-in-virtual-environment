@@ -19,7 +19,7 @@ const bit<8> TYPE_ICMP = 0x1;
 const bit<8> TYPE_OSPF = 0x59;
 
 const bit<8> TYPE_HELLO = 0x1;
-const bit<8> TYPE_LSU = 0x2;
+const bit<8> TYPE_LSU = 0x4;
 
 const bit<8> ICMP_ECHO_REQUEST = 8;
 const bit<8> ICMP_ECHO_REPLY   = 0;
@@ -257,6 +257,9 @@ control ingress_control(inout headers_t hdr,
     action request_arp() {
         port_t temp = standard_metadata.egress_spec;
         send_to_cpu(1);
+        if(next_hop == 0){
+            next_hop = hdr.ipv4.dstAddr;
+        }
         hdr.cpu_metadata.nextHop = next_hop;
         hdr.cpu_metadata.dstPort = temp;
     }
@@ -324,7 +327,7 @@ control ingress_control(inout headers_t hdr,
                             send_to_cpu(6);
                         }
                     }
-                  }else if(next_hop != 0){
+                  }else if(standard_metadata.egress_spec >1){
                     arp_table.apply();
                   }
                 }else{
