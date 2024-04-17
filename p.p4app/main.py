@@ -45,49 +45,13 @@ class MyTopo(Topo):
         self.addLink(h2, s1, port2=2)
         self.addLink(h3, s1, port2=3)
 
-        self.addLink(r2, h1,
-                     params1={
-                         #     'ip': '20.0.0.1/24',
-                         'port': 2
-                     })
+        self.addLink(r2, h1, port1=2)
 
-        self.addLink(r1, s1,
-                     params1={
-                         # 'ip': '102.168.0.1/24',
-                         'port': 2
-                     },
-                     params2={'port': 4}
-                     )
+        self.addLink(r1, s1, port1=2, port2=4)
+        self.addLink(r1, r2, port1=3, port2=3)
+        self.addLink(r1, r3, port1=4, port2=2)
 
-        self.addLink(r1, r2,
-                     params1={
-                         # 'ip': '192.168.1.1/24',
-                         'port': 3
-                     },
-                     params2={
-                         #     'ip': '192.168.1.2/24',
-                         'port': 3
-                     })
-
-        self.addLink(r1, r3,
-                     params1={
-                         # 'ip': '192.168.2.2/24',
-                         'port': 4
-                     },
-                     params2={
-                         #     'ip': '192.168.2.1/24',
-                         'port': 2
-                     })
-
-        self.addLink(r2, r3,
-                     params1={
-                         #     'ip': '192.168.3.1/24',
-                         'port': 4
-                     },
-                     params2={
-                         #     'ip': '192.168.3.2/24',
-                         'port': 3
-                     })
+        self.addLink(r2, r3, port1=4, port=3)
 
 
 def main():

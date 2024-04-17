@@ -596,7 +596,6 @@ class LSUManager(Thread):
 
     def start(self):
         super(LSUManager, self).start()
-        sleep(0.3)
 
     def run(self):
         while not self.cntrl.stop_event.is_set():
