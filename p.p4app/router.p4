@@ -6,10 +6,10 @@ typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
 typedef bit<16> mcastGrp_t;
 
-const port_t CPU_PORT = 1;
+const port_t CPU_PORT = 0x1;
 
-const bit<16> ARP_OP_REQUEST = 1;
-const bit<16> ARP_OP_REPLY = 2;
+const bit<16> ARP_OP_REQUEST = 0x1;
+const bit<16> ARP_OP_REPLY = 0x2;
 
 const bit<16> TYPE_IPV4 = 0x800;
 const bit<16> TYPE_ARP = 0x806;
@@ -21,7 +21,7 @@ const bit<8> TYPE_OSPF = 0x59;
 const bit<8> TYPE_HELLO = 0x1;
 const bit<8> TYPE_LSU = 0x4;
 
-const bit<8> ICMP_ECHO_REQUEST = 8;
+const bit<8> ICMP_ECHO_REQUEST = 0x8;
 const bit<8> ICMP_ECHO_REPLY   = 0;
 
 header ethernet_t {
@@ -79,13 +79,8 @@ header lsu_t {
     bit<16>     sequence;
     bit<16>     ttl;
     bit<32>     adv_number;
-    bit<32>     adv;
+    # TODO: ?create header stack with lsu_ad? might not be possible
 }
-#header lsu_ad_t {
-#    ip4_Addr_t  subnet;
-#    ip4_Addr_t  mask;
-#    ip4_Addr_t  routerID;
-#}
 
 header icmp_t {
     bit<8>  type;
@@ -412,16 +407,6 @@ control verify_checksum_control(inout headers_t hdr,
             hdr.ipv4.hdrChecksum,
             HashAlgorithm.csum16
         );
-        #verify_checksum(hdr.pwospf.isValid(),
-        #    { hdr.pwospf.version,
-        #        hdr.pwospf.type,
-        #        hdr.pwospf.length,
-        #        hdr.pwospf.routerID,
-        #        hdr.pwospf.areaID,
-        #        hdr.pwospf.auType },
-        #    hdr.pwospf.checksum,
-        #    HashAlgorithm.csum16
-        #);
     }
 }
 
@@ -444,22 +429,6 @@ control compute_checksum_control(inout headers_t hdr,
             hdr.ipv4.hdrChecksum,
             HashAlgorithm.csum16
         );
-
-        #update_checksum(
-        #    hdr.pwospf.isValid(),
-        #    { hdr.pwospf.version,
-        #        hdr.pwospf.type,
-        #        hdr.pwospf.length,
-        #        hdr.pwospf.routerID,
-        #        hdr.pwospf.areaID,
-        #        hdr.pwospf.auType,
-        #        hdr.hello.netMask,
-        #        hdr.hello.helloInt,
-        #        hdr.hello.padding
-        #    },
-        #    hdr.pwospf.checksum,
-        #    HashAlgorithm.csum16
-        #);
     }
 }
 

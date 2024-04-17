@@ -1,6 +1,4 @@
-import heapq
 import socket
-from collections import defaultdict
 from time import time, sleep
 from sniffer import sniff
 from threading import Thread, Event, Timer
@@ -76,7 +74,6 @@ class RouterController(Thread):
             lsu_int (int): LSU interval.
         """
         super(RouterController, self).__init__()
-        self.init = True
         self.init_time = time()
         self.prev_pwospf_table = {}
         self.table_entries = []
@@ -418,7 +415,6 @@ class RouterController(Thread):
                             self.pwospf_table[netaddr] = r
                         break
         if self.prev_pwospf_table != self.pwospf_table:
-            self.init = False
             self.update_routing_table()
 
     def clear_routing_table(self):
@@ -459,9 +455,6 @@ class RouterController(Thread):
 
         for rid, entry in rm_entries:
             self.lsu_db[rid]['networks'].remove(entry)
-
-    def is_changed_database(self):
-        pass
 
 
 class HelloManager(Thread):
