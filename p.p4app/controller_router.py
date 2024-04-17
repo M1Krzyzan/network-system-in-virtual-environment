@@ -23,6 +23,7 @@ class Interface:
             port (int): Port number of the interface.
             hello_int (int): Hello interval for OSPF protocol.
         """
+        self.is_acive = True
         self.ip_addr = ip_addr
         self.mask = mask
         self.hello_int = hello_int
@@ -75,10 +76,12 @@ class RouterController(Thread):
             lsu_int (int): LSU interval.
         """
         super(RouterController, self).__init__()
-        self.init = None
+        self.init = True
+        self.init_time = time()
         self.prev_pwospf_table = {}
         self.table_entries = []
         self.pwospf_table = {}
+        self.disabled_net = []
         self.router = router
         self.intf = router.intfs[1].name
         self.stop_event = Event()
@@ -260,6 +263,8 @@ class RouterController(Thread):
         if (router_id, intf_ip) in intf.neighbours:
             intf.update_time(router_id, intf_ip)
         else:
+            if len(intf.neighbours) == 0:
+                intf.is_active = True
             intf.add_neighbor(router_id, intf_ip)
 
     def handle_lsu(self, pkt):
@@ -282,6 +287,10 @@ class RouterController(Thread):
 
         adj_list = [(lsu_ad.subnet, lsu_ad.mask, lsu_ad.routerID) for lsu_ad in pkt[LSU].adList]
         if router_id in self.lsu_db and adj_list == self.lsu_db[router_id]["networks"]:
+            for key in self.pwospf_table:
+                if key in self.disabled_net:
+                    self.djikstra()
+                    break
             self.lsu_db[router_id]["last_update"] = time()
             self.lsu_db[router_id]["sequence"] = pkt[LSU].sequence
         else:
@@ -290,12 +299,12 @@ class RouterController(Thread):
                 'last_update': time(),
                 'networks': [(lsu_ad.subnet, lsu_ad.mask, lsu_ad.routerID) for lsu_ad in pkt[LSU].adList]
             }
-            self.prev_pwospf_table = self.pwospf_table
+            self.check_discrepancies()
+            self.prev_pwospf_table = self.pwospf_table.copy()
             self.djikstra()
-            if self.prev_pwospf_table != self.pwospf_table or self.init:
-                self.init = False
-                self.update_routing_table()
             self.lsu_mngr.flood_lsu_packet(pkt)
+
+        # print(self.router_id,self.pwospf_table)
 
     # Method to handle incoming packets
     def handle_packet(self, packet: bytes):
@@ -363,14 +372,15 @@ class RouterController(Thread):
         for rid, lsa in self.lsu_db.items():
             for neigh in lsa['networks']:
                 subnet, netmask, neighid = neigh
-                g.add_edge(rid, neighid)
                 netaddr = ipprefix(subnet, netmask)
+                if netaddr not in self.disabled_net:
+                    g.add_edge(rid, neighid)
+                else:
+                    continue
                 if netaddr not in networks:
                     networks[netaddr] = set()
                 networks[netaddr].add(rid)
-
         next_hops = g.find_shortest_paths(self.router_id)
-
         for netaddr, nodes in networks.items():
 
             if len(nodes) == 1:
@@ -382,7 +392,6 @@ class RouterController(Thread):
                 else:
                     nhop, _ = next_hops.get(dst, (None, None))
             elif len(nodes) == 2:
-
                 n1, n2 = nodes
 
                 if self.router_id in nodes:
@@ -392,7 +401,7 @@ class RouterController(Thread):
                     nhop, _ = next_hops[dst]
 
             for intf in self.intfs:
-                if len(intf.neighbours) == 0:
+                if len(intf.neighbours) == 0 and ipprefix(intf.ip_addr, intf.mask) not in self.disabled_net:
                     gateway = '0.0.0.0'
                     r = (gateway, intf.port)
                     self.pwospf_table[netaddr] = r
@@ -408,6 +417,9 @@ class RouterController(Thread):
                             r = (gateway, intf.port)
                             self.pwospf_table[netaddr] = r
                         break
+        if self.prev_pwospf_table != self.pwospf_table:
+            self.init = False
+            self.update_routing_table()
 
     def clear_routing_table(self):
         n = len(self.table_entries)
@@ -429,7 +441,27 @@ class RouterController(Thread):
                                          action_name='ingress_control.set_nhop',
                                          action_params={'nhop': next_hop, 'egress_port': port})
             self.table_entries.append((ip, int(mask), next_hop, port))
-        self.router.printTableEntries()
+
+    def check_discrepancies(self):
+        rm_entries = []
+        for rid, lsa in self.lsu_db.items():
+            for neigh in lsa['networks']:
+                subnet, mask, router_id = neigh
+                network1 = ipprefix(subnet, mask)
+                for other_rid, other_lsa in self.lsu_db.items():
+                    if rid == other_rid:
+                        continue
+                    for other_neigh in other_lsa['networks']:
+                        other_subnet, other_mask, other_router_id = other_neigh
+                        network2 = ipprefix(other_subnet, other_mask)
+                        if network1 == network2 and subnet != other_subnet and router_id == other_router_id == '0.0.0.0':
+                            rm_entries.append((rid, (subnet, mask, router_id)))
+
+        for rid, entry in rm_entries:
+            self.lsu_db[rid]['networks'].remove(entry)
+
+    def is_changed_database(self):
+        pass
 
 
 class HelloManager(Thread):
@@ -454,6 +486,8 @@ class HelloManager(Thread):
             then = self.intf.neighbours_times.setdefault((n[0], n[1]), now)
             if (now - then) > 3 * self.intf.hello_int:
                 self.intf.remove_neighbor(n[0], n[1])
+                self.cntrl.disabled_net.append(ipprefix(self.intf.ip_addr, self.intf.mask))
+                self.cntrl.lsu_mngr.send_lsu()
 
     def send_hello(self):
         """
@@ -516,7 +550,7 @@ class LSUManager(Thread):
                     hdr[LSUad].mask = intf.mask
                     hdr[LSUad].routerID = neighbor[0]
                     adjacency_list.append(hdr)
-            else:
+            elif ipprefix(intf.ip_addr, intf.mask) not in self.cntrl.disabled_net:
                 hdr = LSUad()
                 hdr[LSUad].subnet = intf.ip_addr
                 hdr[LSUad].mask = intf.mask
@@ -575,8 +609,11 @@ class LSUManager(Thread):
         while not self.cntrl.stop_event.is_set():
             if time() - self.last_called >= self.lsu_int:
                 self.send_lsu()
-            for entry in self.cntrl.lsu_db:
-                if time()-self.cntrl.lsu_db[entry]['last_update']>3*self.lsu_int:
+            lsu_db_copy = list(self.cntrl.lsu_db)
+            for entry in lsu_db_copy:
+                if entry not in self.cntrl.lsu_db:
+                    continue
+                if time() - self.cntrl.lsu_db[entry]['last_update'] > 3 * self.lsu_int:
                     del self.cntrl.lsu_db[entry]
             sleep(0.1)
 

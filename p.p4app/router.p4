@@ -81,6 +81,11 @@ header lsu_t {
     bit<32>     adv_number;
     bit<32>     adv;
 }
+#header lsu_ad_t {
+#    ip4_Addr_t  subnet;
+#    ip4_Addr_t  mask;
+#    ip4_Addr_t  routerID;
+#}
 
 header icmp_t {
     bit<8>  type;
@@ -191,6 +196,9 @@ control ingress_control(inout headers_t hdr,
     action set_nhop(ip4Addr_t nhop, port_t egress_port) {
         standard_metadata.egress_spec = egress_port;
         next_hop = nhop;
+        if(next_hop == 0){
+            next_hop = hdr.ipv4.dstAddr;
+        }
         hdr.ipv4.ttl = hdr.ipv4.ttl -1;
     }
 
@@ -257,9 +265,6 @@ control ingress_control(inout headers_t hdr,
     action request_arp() {
         port_t temp = standard_metadata.egress_spec;
         send_to_cpu(1);
-        if(next_hop == 0){
-            next_hop = hdr.ipv4.dstAddr;
-        }
         hdr.cpu_metadata.nextHop = next_hop;
         hdr.cpu_metadata.dstPort = temp;
     }
