@@ -1,7 +1,7 @@
 import socket
 from time import time, sleep
 from sniffer import sniff
-from threading import Thread, Event, Timer
+from threading import Thread, Event
 from p4runtime_lib.convert import *
 from headers.router_cpu_metadata import RouterCPUMetadata
 from headers.pwospf import PWOSPF, Hello, LSU, LSUad
@@ -21,7 +21,6 @@ class Interface:
             port (int): Port number of the interface.
             hello_int (int): Hello interval for OSPF protocol.
         """
-        self.is_acive = True
         self.ip_addr = ip_addr
         self.mask = mask
         self.hello_int = hello_int
@@ -63,7 +62,7 @@ class Interface:
 
 
 class RouterController(Thread):
-    def __init__(self, router, router_intfs, area_id=1, lsu_int=10, start_wait=0.3):
+    def __init__(self, router, router_intfs, area_id=1, lsu_int=30, start_wait=0.3):
         """
         Initialize a RouterController object.
 
@@ -75,6 +74,7 @@ class RouterController(Thread):
         """
         super(RouterController, self).__init__()
         self.init_time = time()
+        self.lsu_int = lsu_int
         self.prev_pwospf_table = {}
         self.table_entries = []
         self.pwospf_table = {}
@@ -87,7 +87,7 @@ class RouterController(Thread):
         self.intfs = []  # List to store router interfaces
         self.arp_table = {}  # ARP table
         self.hello_mngrs = []  # List to store HelloManager instances
-        self.lsu_mngr = LSUManager(self)
+        self.lsu_mngr = LSUManager(self, lsu_int=10)
 
         # Initialize interfaces
         for intf in router_intfs:
@@ -260,9 +260,11 @@ class RouterController(Thread):
         if (router_id, intf_ip) in intf.neighbours:
             intf.update_time(router_id, intf_ip)
         else:
-            if len(intf.neighbours) == 0:
-                intf.is_active = True
+            netaddr = ipprefix(intf.ip_addr,intf.mask)
+            if netaddr in self.disabled_net:
+                self.disabled_net.pop(self.disabled_net.index(netaddr))
             intf.add_neighbor(router_id, intf_ip)
+        print(self.router_id,self.disabled_net)
 
     def handle_lsu(self, pkt):
         if pkt[PWOSPF].version != 2 or pkt[PWOSPF].areaID != self.area_id:
@@ -288,6 +290,7 @@ class RouterController(Thread):
                 if key in self.disabled_net:
                     self.djikstra()
                     break
+
             self.lsu_db[router_id]["last_update"] = time()
             self.lsu_db[router_id]["sequence"] = pkt[LSU].sequence
         else:
@@ -300,8 +303,6 @@ class RouterController(Thread):
             self.prev_pwospf_table = self.pwospf_table.copy()
             self.djikstra()
             self.lsu_mngr.flood_lsu_packet(pkt)
-
-        # print(self.router_id,self.pwospf_table)
 
     # Method to handle incoming packets
     def handle_packet(self, packet: bytes):
@@ -526,7 +527,7 @@ class HelloManager(Thread):
 
 
 class LSUManager(Thread):
-    def __init__(self, cntrl: RouterController, lsu_int: int = 10):
+    def __init__(self, cntrl: RouterController, lsu_int: int):
         super(LSUManager, self).__init__()
         self.cntrl = cntrl
         self.lsu_int = lsu_int
