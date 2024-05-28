@@ -62,7 +62,7 @@ class Interface:
 
 
 class RouterController(Thread):
-    def __init__(self, router, router_intfs, area_id=1, lsu_int=30, start_wait=0.3):
+    def __init__(self, router, p4info_helper, router_intfs, area_id=1, lsu_int=30, start_wait=0.3):
         """
         Initialize a RouterController object.
 
@@ -73,6 +73,7 @@ class RouterController(Thread):
             lsu_int (int): LSU interval.
         """
         super(RouterController, self).__init__()
+        self.p4info = p4info_helper
         self.init_time = time()
         self.lsu_int = lsu_int
         self.prev_pwospf_table = {}
@@ -90,8 +91,8 @@ class RouterController(Thread):
         self.lsu_mngr = LSUManager(self, lsu_int=10)
 
         # Initialize interfaces
-        for intf in router_intfs:
-            self.intfs.append(Interface(intf[0], intf[1], intf[2], intf[3], 3))
+        for i in range(0,len(router_intfs)):
+            self.intfs.append(Interface(router_intfs[i]["MAC"], router_intfs[i]["IP"], router_intfs[i]["MASK"], i+2, 3))
 
         # PWOSPF fields
         self.router_id = self.intfs[0].ip_addr
@@ -133,7 +134,7 @@ class RouterController(Thread):
             self.arp_table[pkt[ARP].psrc] = pkt[ARP].hwsrc
 
         # add a pair of ip address, mac address to arp table
-        self.router.insertTableEntry(table_name='ingress_control.arp_table',
+        self.router.insertTableEntry(self.p4info,table_name='ingress_control.arp_table',
                                      match_fields={'next_hop': pkt[ARP].psrc},
                                      action_name='ingress_control.set_dmac',
                                      action_params={'mac_dest': pkt[ARP].hwsrc})
@@ -422,7 +423,7 @@ class RouterController(Thread):
         n = len(self.table_entries)
         for i in range(n):
             ip, mask, next_hop, port = self.table_entries.pop(0)
-            self.router.removeTableEntry(table_name='ingress_control.ipv4_lpm',
+            self.router.removeTableEntry(self.p4info, table_name='ingress_control.ipv4_lpm',
                                          match_fields={'hdr.ipv4.dstAddr': [ip, mask]},
                                          action_name='ingress_control.set_nhop',
                                          action_params={'nhop': next_hop, 'egress_port': port})
@@ -433,7 +434,7 @@ class RouterController(Thread):
         for subnet, route in self.pwospf_table.items():
             ip, mask = subnet.split('/')
             next_hop, port = route
-            self.router.insertTableEntry(table_name='ingress_control.ipv4_lpm',
+            self.router.insertTableEntry(self.p4info, table_name='ingress_control.ipv4_lpm',
                                          match_fields={'hdr.ipv4.dstAddr': [ip, int(mask)]},
                                          action_name='ingress_control.set_nhop',
                                          action_params={'nhop': next_hop, 'egress_port': port})

@@ -7,7 +7,7 @@ from scapy.all import Ether
 
 
 class SwitchController(Thread):
-    def __init__(self, switch):
+    def __init__(self, switch, p4info_helper):
         """
         Initialize a SwitchController object.
 
@@ -15,8 +15,8 @@ class SwitchController(Thread):
             switch: Switch object to be controlled.
         """
         super(SwitchController, self).__init__()
-        self.switch = switch  # Switch object to be controlled
-        self.intfs = switch.intfs[1].name  # Interface associated with the switch
+        self.switch = switch  # Switch object
+        self.p4info = p4info_helper
         self.stop_event = Event()  # Event to signal stopping the controller
         self.forwarding_table = {}  # Forwarding table to store routing information
 
@@ -30,11 +30,11 @@ class SwitchController(Thread):
             return
         self.forwarding_table[mac_addr] = port
 
-        self.switch.insertTableEntry(table_name='ingress_control.l2_forwarding',
+        self.switch.insertTableEntry(self.p4info, table_name='ingress_control.l2_forwarding',
                                      match_fields={'hdr.ethernet.dstAddr': [mac_addr]},
                                      action_name='ingress_control.forward',
                                      action_params={'egress_port': port})
-        self.switch.insertTableEntry(table_name='ingress_control.learned_src',
+        self.switch.insertTableEntry(self.p4info,table_name='ingress_control.learned_src',
                                      match_fields={'hdr.ethernet.srcAddr': [mac_addr]},
                                      action_name='NoAction')
 
@@ -45,7 +45,7 @@ class SwitchController(Thread):
         :param pkt: Packet to send
         """
         raw_socket = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
-        raw_socket.bind((self.switch.intfs[port].name, 0))
+        raw_socket.bind(('eth0', 0))
         raw_socket.send(pkt)
 
     def handle_packet(self, packet: bytes):
@@ -54,7 +54,7 @@ class SwitchController(Thread):
         :param packet: Packet received from sniffer
         """
         pkt = Ether(packet)
-
+        pkt.show()
         if CPUMetadata not in pkt:
             print("Error: Packets coming to CPU should have special header/ switch")
             return
@@ -69,7 +69,7 @@ class SwitchController(Thread):
         """
         Main loop of the switch controller
         """
-        sniff(self.intfs, self.handle_packet, self.stop_event)
+        sniff('eth0', self.handle_packet, self.stop_event)
 
     def start(self):
         """
