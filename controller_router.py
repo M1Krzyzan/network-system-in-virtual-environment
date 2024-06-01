@@ -81,7 +81,6 @@ class RouterController(Thread):
         self.pwospf_table = {}
         self.disabled_net = []
         self.router = router
-        self.intf = router.intfs[1].name
         self.stop_event = Event()
         self.start_wait = start_wait
         self.stored_packet = None
@@ -116,7 +115,7 @@ class RouterController(Thread):
             pkt (bytes): Packet to send
         """
         raw_socket = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
-        raw_socket.bind((self.router.intfs[port].name, 0))
+        raw_socket.bind(('eth0', 0))
         raw_socket.send(pkt)
         raw_socket.close()
 
@@ -346,7 +345,7 @@ class RouterController(Thread):
         """
         Main loop of the switch controller
         """
-        sniff(self.intf, self.handle_packet, self.stop_event)
+        sniff('eth0', self.handle_packet, self.stop_event)
 
     def start(self):
         """
