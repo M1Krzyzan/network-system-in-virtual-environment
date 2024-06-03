@@ -42,6 +42,8 @@ def main():
         parser.exit(1)
 
     p4info_helper = helper.P4InfoHelper(args.p4info)
+    if not os.path.isdir("logs"):
+        os.mkdir("logs")
     r1 = bmv2.Bmv2SwitchConnection(name='r1', proto_dump_file="logs/r1-p4runtime-requests.txt")
     r1.MasterArbitrationUpdate()
     r1.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=args.bmv2_json)
